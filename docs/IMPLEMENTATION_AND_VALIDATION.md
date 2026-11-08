@@ -22,12 +22,12 @@ Este documento governa a implementação e verificação empírica da skill/plug
 | **`IMP-13`** | Etapa 10: Loop de Aprendizado Contínuo (`<friction-and-learnings>`) e Auto-Evolução de Regras | `src/learning-loop.ts`, `skills/plan-rule-author/SKILL.md` | **`VAL-13`**: `test/learning-loop.test.ts` (1 pass) | `[x] PASS` |
 | **`IMP-14`** | Etapa 11: Publicação Produtiva Cloud (`GitHub Actions First` + `gcloud`/`wrangler`/`aws`/`az` + 3 Manuais) | `src/cloud-release-validator.ts`, `skills/cloud-release/SKILL.md` | **`VAL-14`**: `test/cloud-release.test.ts` (1 pass) | `[x] PASS` |
 
-## 2. Bateria de Testes End-to-End nos Projetos-Piloto (`test/pilots/pilots-e2e.test.ts`)
+## 2. Bateria de Testes End-to-End nos Projetos-Piloto (`E2E-P0..P4`)
 
 | ID | Projeto-Piloto | Escopo Arquitetural | Status |
 | :--- | :--- | :--- | :--- |
-| **`E2E-P0`** | **Piloto 0 — Onboarding Brownfield** | Código existente sem `docs/` → bloqueio de novas features, engenharia reversa, planejamento retroativo e `TRACKER.md` com `0 drift`. | `[x] PASS` |
-| **`E2E-P1`** | **Piloto 1 — Simples (Somente UI)** | Frontend (`Next.js/Vite` + Tailwind v4) + Design System Code-First + LGPD Consent UI + Ondas Visuais + Unit/Playwright E2E + Sonar. | `[x] PASS` |
-| **`E2E-P2`** | **Piloto 2 — Simples (Somente Backend)** | Backend API + Mandato `NFR-0` (ROPA LGPD, Redaction BR, Vault, Pino, OTel) + Unit/Int/Supertest E2E + SAST/DAST/PenTest API. | `[x] PASS` |
-| **`E2E-P3`** | **Piloto 3 — Moderado (`UI + Cache + Backend`)** | Full-Stack Tipado + Isolamento Redis Multi-Tenant por SI (`si_nn_x:*`) + Expurgo LGPD em Cache + E2E Cross-Layer + PenTest Cache/Rate-Limit. | `[x] PASS` |
-| **`E2E-P4`** | **Piloto 4 — Complexo (`UI + Cache + Backend + Queue + DB`)** | Isolamento Quádruplo por SI (Postgres Schema + Redis ACL + RabbitMQ VHost + Vault) + Criptografia/Blind Index/Crypto-Shredding LGPD Art. 18 + Outbox/DLQ + Race Condition PenTests + Trace Graph + FinOps Calibration. | `[x] PASS` |
+| **`E2E-P0`** | **Piloto 0 — Onboarding Brownfield** | Código existente sem `docs/` → bloqueio de novas features, engenharia reversa, planejamento retroativo e `TRACKER.md` com `0 drift`. | `[ ] PENDING` |
+| **`E2E-P1`** | **Piloto 1 — Simples (Somente UI)** | Frontend (`Next.js/Vite` + Tailwind v4) + Design System Code-First + LGPD Consent UI + Ondas Visuais + Unit/Playwright E2E + Sonar. | `[ ] PENDING` |
+| **`E2E-P2`** | **Piloto 2 — Simples (Somente Backend)** | Backend API + Mandato `NFR-0` (ROPA LGPD, Redaction BR, Vault, Pino, OTel) + Unit/Int/Supertest E2E + SAST/DAST/PenTest API. | `[ ] PENDING` |
+| **`E2E-P3`** | **Piloto 3 — Moderado (`UI + Cache + Backend`)** | Full-Stack Tipado + Isolamento Redis Multi-Tenant por SI (`si_nn_x:*`) + Expurgo LGPD em Cache + E2E Cross-Layer + PenTest Cache/Rate-Limit. | `[ ] PENDING` |
+| **`E2E-P4`** | **Piloto 4 — Complexo (`UI + Cache + Backend + Queue + DB`)** | Isolamento Quádruplo por SI (Postgres Schema + Redis ACL + RabbitMQ VHost + Vault) + Criptografia/Blind Index/Crypto-Shredding LGPD Art. 18 + Outbox/DLQ + Race Condition PenTests + Trace Graph + FinOps Calibration. | `[ ] PENDING` |
