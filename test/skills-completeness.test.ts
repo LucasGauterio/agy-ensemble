@@ -72,25 +72,41 @@ describe("IMP-16 / VAL-16: Full Skills & Ensemble Infrastructure Completeness Ve
 		expect(totalBytes).toBeGreaterThan(700 * 1024);
 
 		// implement/SKILL.md must be the full extensive protocol (> 50 KB)
-		const implementContent = fs.readFileSync(path.join(skillsDir, "implement", "SKILL.md"), "utf-8");
+		const implementContent = fs.readFileSync(
+			path.join(skillsDir, "implement", "SKILL.md"),
+			"utf-8",
+		);
 		expect(implementContent.length).toBeGreaterThan(50 * 1024);
 		expect(implementContent).toContain("AUTONOMOUS CONTINUOUS MODE BY DEFAULT");
 		expect(implementContent).toContain("progress file");
 		expect(implementContent).toContain("Observations format");
 
 		// plan-build must have its extensive companion files and tech-spec templates
-		const planBuildContent = fs.readFileSync(path.join(skillsDir, "plan-build", "SKILL.md"), "utf-8");
+		const planBuildContent = fs.readFileSync(
+			path.join(skillsDir, "plan-build", "SKILL.md"),
+			"utf-8",
+		);
 		expect(planBuildContent.length).toBeGreaterThan(20 * 1024);
 		expect(planBuildContent).toContain("Gate 1 — Mode detection");
 		expect(planBuildContent).toContain("Gate 6 — Status gate");
 	});
 
 	it("guarantees the mandatory LGPD Privacy Specification template is present and comprehensive", () => {
-		const lgpdSpecPath = path.join(skillsDir, "plan-build", "templates", "tech-specs", "lgpd-privacy-spec.md");
+		const lgpdSpecPath = path.join(
+			skillsDir,
+			"plan-build",
+			"templates",
+			"tech-specs",
+			"lgpd-privacy-spec.md",
+		);
 		expect(fs.existsSync(lgpdSpecPath)).toBe(true);
 		const content = fs.readFileSync(lgpdSpecPath, "utf-8");
-		expect(content).toContain("Mandato NFR-0 Inegociável — Lei Geral de Proteção de Dados (Lei nº 13.709/2018)");
-		expect(content).toContain("ROPA — Registro das Operações de Tratamento (Art. 37 LGPD)");
+		expect(content).toContain(
+			"Mandato NFR-0 Inegociável — Lei Geral de Proteção de Dados (Lei nº 13.709/2018)",
+		);
+		expect(content).toContain(
+			"ROPA — Registro das Operações de Tratamento (Art. 37 LGPD)",
+		);
 		expect(content).toContain("Direitos do Titular (Art. 18 LGPD)");
 		expect(content).toContain("Crypto-Shredding");
 		expect(content).toContain("Blind Index (Busca Determinística)");
@@ -134,18 +150,27 @@ describe("IMP-16 / VAL-16: Full Skills & Ensemble Infrastructure Completeness Ve
 		}
 
 		// merge-helper.ts must contain real git commands and branch preservation
-		const mergeHelper = fs.readFileSync(path.join(srcDir, "tools", "merge-helper.ts"), "utf-8");
+		const mergeHelper = fs.readFileSync(
+			path.join(srcDir, "tools", "merge-helper.ts"),
+			"utf-8",
+		);
 		expect(mergeHelper).toContain("preserveBranch");
 		expect(mergeHelper).toContain("mergeBranchRaw");
 		expect(mergeHelper).toContain("git");
 
 		// team-spawn.ts must contain real session management, circuit breaker and prompt limits
-		const teamSpawn = fs.readFileSync(path.join(srcDir, "tools", "team-spawn.ts"), "utf-8");
+		const teamSpawn = fs.readFileSync(
+			path.join(srcDir, "tools", "team-spawn.ts"),
+			"utf-8",
+		);
 		expect(teamSpawn).toContain("spawnFailures");
 		expect(teamSpawn).toContain("executeTeamSpawn");
 
 		// team-cleanup.ts must contain safety-net merge and branch cleanup
-		const teamCleanup = fs.readFileSync(path.join(srcDir, "tools", "team-cleanup.ts"), "utf-8");
+		const teamCleanup = fs.readFileSync(
+			path.join(srcDir, "tools", "team-cleanup.ts"),
+			"utf-8",
+		);
 		expect(teamCleanup).toContain("executeTeamCleanup");
 	});
 });

@@ -3,6 +3,7 @@ import path from "node:path";
 
 /** Required workflow artifacts that MUST exist and stay synchronized with the codebase. */
 export const MANDATORY_WORKFLOW_ARTIFACTS: readonly string[] = [
+	"README.md",
 	"AGENTS.md",
 	"CLAUDE.md",
 	"CONTEXT.md",
@@ -110,15 +111,45 @@ export function evaluateBrownfieldGate(
 export function bootstrapAndSyncBrownfieldProject(
 	projectDir: string,
 	options: { projectName: string },
-): { initialized: boolean; scannedSourceFiles: string[]; driftCount: number } {
+): {
+	initialized: boolean;
+	scannedSourceFiles: string[];
+	driftCount: number;
+	artifactsGenerated: string[];
+} {
 	const scannedSourceFiles = scanCodebaseSourceFiles(projectDir);
+	const artifactsGenerated: string[] = [];
 
 	const ensureFile = (relPath: string, content: string): void => {
 		const absPath = path.join(projectDir, relPath);
-		fs.mkdirSync(path.dirname(absPath), { recursive: true });
-		fs.writeFileSync(absPath, content, "utf8");
+		if (!fs.existsSync(absPath)) {
+			fs.mkdirSync(path.dirname(absPath), { recursive: true });
+			fs.writeFileSync(absPath, content, "utf8");
+			artifactsGenerated.push(relPath);
+		}
 	};
 
+	ensureFile(
+		"README.md",
+		`# ${options.projectName}
+
+## Visão Geral
+Aplicação inicializada e governada pelo fluxo autônomo agy-ensemble.
+Linha de base reconstruída retroativamente a partir de ${scannedSourceFiles.length} arquivos-fonte.
+
+## Como Executar
+\`\`\`bash
+npm install
+npm run build
+npm start
+\`\`\`
+
+## Testes
+\`\`\`bash
+npm test
+\`\`\`
+`,
+	);
 	ensureFile(
 		"AGENTS.md",
 		`# ${options.projectName} — Agent Governance (agy-ensemble)\n\nStrict Etapa 0.0–11 pipeline active.\n`,
@@ -190,5 +221,21 @@ export function bootstrapAndSyncBrownfieldProject(
 		initialized: true,
 		scannedSourceFiles,
 		driftCount: postCheck.driftCount,
+		artifactsGenerated,
 	};
+}
+
+/**
+ * Convenient wrapper for bootstrapping and synchronizing a brownfield project.
+ */
+export function bootstrapBrownfieldProject(
+	projectDir: string,
+	projectName: string,
+): {
+	initialized: boolean;
+	scannedSourceFiles: string[];
+	driftCount: number;
+	artifactsGenerated: string[];
+} {
+	return bootstrapAndSyncBrownfieldProject(projectDir, { projectName });
 }

@@ -160,6 +160,7 @@ Once every SI in the phase has been implemented and tested, run the phase-level 
 4. **Type-check**: `npx tsc --noEmit` (or the plan's equivalent command).
 5. **Project build**: Run the build command defined in the project (e.g., `npm run build`) to verify the code compiles and bundles correctly.
 6. **Smoke test**: when the phase's Deliverables include server-connected/runtime behavior (a new or changed endpoint, worker, or user-facing flow), run `npm run smoke` — proves the feature works against the real running app, not just under test mocks. Skip only for phases with no runtime-observable surface (pure docs/config/planning phases).
+7. **Mandatory README Synchronization Gate (Mandato README-SYNC-0)**: Antes de emitir o Completion Report e antes de qualquer squash merge, o Lead Agente DEVE atualizar o `README.md` da raiz do projeto para refletir a fase entregue (`### Fase NN — <Nome>`), novos endpoints/telas, novas variáveis de ambiente no `.env.example` e instruções de execução/testes. O gate `evaluatePhaseReadmeSync` bloqueia a entrega se houver defasagem documental.
 
 Verify any additional deliverables listed in the plan (migrations, documentation updates, seed data, configuration files). These results are presented in the **Completion report** (see section below).
 

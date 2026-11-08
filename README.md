@@ -60,18 +60,22 @@ O **`agy-ensemble`** resolve dois problemas clássicos do desenvolvimento assist
 
 ```mermaid
 flowchart TB
-    E0["Etapa 0.0: Gate Bloqueante Brownfield & Sincronia Codebase <-> Docs\n• Verifica artefatos e 0 drift em projetos com código existente\n• Se faltar: init-project + análise reversa + plano retroativo + TRACKER.md"]
+    E0["Etapa 0.0: Gate Bloqueante Brownfield & Sincronia Codebase <-> Docs & README\n• Verifica artefatos e 0 drift em projetos com código existente\n• Se faltar: init-project + análise reversa + plano retroativo + README.md + TRACKER.md"]
     E1["Etapa 1.0: Entrevista Iterativa de Presunções (ask_question)\n• Lotes de 3-5 perguntas c/ (Recommended) na 1ª opção até zerar presunções\n• Gera a Requisição Consolidada Oficial (substitui o prompt inicial)"]
     E2["Etapa 2: /research (Stack Synergy + Volumetria 3 Tiers + Mandato NFR-0)\n• Auto-Decision (zero _[pending]_) + Estimativa Cloud TCO (Seed/Growth/Scale)"]
-    E3["Etapa 3: /design-docs-* & Code-First Design System (Sem Figma)\n• Atualiza PRD.md, RFC.md (c/ ROPA LGPD), FDD.md, DESIGN_SYSTEM.md, ADRs"]
-    E456["Etapas 4, 5 e 6: /plan-context -> /plan-validate -> /plan-resolve\n• Hard Gates SEC-OBS-LGPD-N e FINOPS-VIABILITY-N\n• Auto-resolução arquitetural + Receitas Context7 em library-refs.md"]
-    E7["Etapas 7 e 7.5: /plan-build (Onda Zero) + /plan-test-specs + Relatório Executivo\n• Onda Zero (SI-NN.0.0 Infra/Vault/LGPD e SI-NN.0.1 Design System)\n• Estimates ($ e tempo) por SI + Hard Gate 100% AC-1..N + Abuse Cases\n• Emite Relatório Executivo de Planejamento ao usuário"]
+    E25["Etapa 2.5: Design System Vivo Code-First (Sem Figma)\n• Inventário de componentes UI e definição dos tokens visuais"]
+    E3["Etapa 3: /design-docs-* (PRD, RFC c/ ROPA LGPD, FDD, DESIGN_SYSTEM, ADRs)"]
+    E4["Etapa 4: /plan-context (Context Pack por fatia de fase ou tarefa)"]
+    E5["Etapa 5: /plan-validate (Hard Gates SEC-OBS-LGPD-N e FINOPS-VIABILITY-N c/ 31 Regras)"]
+    E6["Etapa 6: /plan-resolve (Auto-resolução arquitetural + Receitas em library-refs.md)"]
+    E7["Etapa 7: /plan-build (Onda Zero SI-NN.0.0 Infra/Vault/LGPD e SI-NN.0.1 Design System)"]
+    E75["Etapa 7.5: /plan-test-specs & Relatório Executivo Pré-Execução ao Usuário"]
     E8["Etapa 8: Execução Multi-Agente no DAG (delegate: true)\n• 1 Fresh Teammate por SI em Workspace: 'share' + Tenant/Vault isolado\n• Auditoria do Lead (Diff + Gitleaks + LGPD + Reports) -> Shutdown -> Merge"]
-    E9["Etapa 9: Quality Gate Final & Segurança Ofensiva/Defensiva\n• Reports Nativos (JUnit/CTRF/LCOV >= 80%, 0 skipped) + SonarQube Rating A\n• SAST (Semgrep/Trivy) + DAST (OWASP ZAP/Nuclei) + PenTests (worker-pentest)\n• Atualiza docs/TRACKER.md e docs/VALIDATION.md (0 drift)"]
+    E9["Etapa 9: Quality Gate Final & Sincronia Obrigatória do README.md\n• Reports Nativos (JUnit/CTRF/LCOV >= 80%, 0 skipped) + SonarQube Rating A\n• SAST (Semgrep/Trivy) + DAST (OWASP ZAP/Nuclei) + PenTests (worker-pentest)\n• Atualiza README.md do projeto com as entregas da fase antes do merge"]
     E10["Etapa 10: Retrospectiva Autônoma, Fechamento FinOps & Auto-Evolução\n• Relatório Custo ($) e Tempo Real vs. Estimado + recalibração (cost_time_calibration)\n• Processa <friction-and-learnings> -> KNOWLEDGE_BASE.md, gotchas.md e docs/rules/"]
     E11["Etapa 11: Publicação Produtiva Cloud (Mediante Permissão do Usuário)\n• GitHub Actions First (OIDC + Rollback) -> gcloud, wrangler, gh, aws, az\n• Mantém os 3 Manuais Operacionais de Contingência Humana sempre atualizados"]
 
-    E0 ==> E1 ==> E2 ==> E3 ==> E456 ==> E7 ==> E8 ==> E9 ==> E10 ==> E11
+    E0 ==> E1 ==> E2 ==> E25 ==> E3 ==> E4 ==> E5 ==> E6 ==> E7 ==> E75 ==> E8 ==> E9 ==> E10 ==> E11
 ```
 
 ---
@@ -101,6 +105,14 @@ Antes de iniciar a execução dos Teammates na Etapa 8, o Lead apresenta ao usu�
 - Ondas de SIs no DAG (`Wave 0..N`) e arquivos tocados;
 - Orçamento estimado de custo monetário (`$`) e tempo dos agentes para a fase;
 - Link direto para abrir o **`Live Execution Trace Graph UI`** (`sidecar://agy-ensemble/trace-graph`).
+
+### 4.4 Mandato `README-SYNC-0`: Sincronia Contínua Obrigatória do README
+1. **Nos Projetos Gerados / Governados:**
+   - Ao final de cada fase implementada (`Etapa 9/10`) e antes do squash merge, o Lead Agente atualiza compulsoriamente o `README.md` da raiz do repositório com as novas funcionalidades, endpoints, telas, variáveis de ambiente documentadas e comandos de execução/testes.
+   - O `evaluatePhaseReadmeSync` bloqueia a entrega se o `README.md` estiver desatualizado.
+   - No Onboarding Brownfield (`Etapa 0.0`), a presença do `README.md` é obrigatória (`MANDATORY_WORKFLOW_ARTIFACTS`); se ausente, é gerado no bootstrap com as instruções de execução da aplicação real.
+2. **Na Própria Skill `agy-ensemble`:**
+   - Qualquer evolução de ferramentas MCP, etapas, templates ou mandatos da skill obriga a atualização imediata deste `README.md`. Validação contínua auditada por [`test/readme-sync-gate.test.ts`](test/readme-sync-gate.test.ts).
 
 ---
 
