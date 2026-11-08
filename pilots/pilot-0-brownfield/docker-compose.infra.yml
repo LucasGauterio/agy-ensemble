@@ -1,7 +1,0 @@
-services:
-  vault:
-    image: openbao/openbao:latest
-  sonarqube:
-    image: sonarqube:community
-  zap:
-    image: ghcr.io/zaproxy/zaproxy:stable

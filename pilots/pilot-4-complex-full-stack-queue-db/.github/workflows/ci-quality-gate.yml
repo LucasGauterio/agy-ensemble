@@ -1,9 +1,0 @@
-name: CI Quality & Security Gate (pilot-complex-full-stack-queue-db)
-on: [push, pull_request]
-jobs:
-  quality-gate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Gitleaks, Unit/Int/E2E, SonarQube & SAST/DAST/PenTest Gate
-        run: bash scripts/test-env/run-phase-gate.sh

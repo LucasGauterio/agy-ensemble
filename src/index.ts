@@ -9,7 +9,6 @@ export * from "./interview-engine"
 export * from "./learning-loop"
 export * from "./mcp-server"
 export * from "./nfr0-lgpd-auditor"
-export * from "./pilot-runner"
 export * from "./quality-gate-evaluator"
 export * from "./schema"
 export * from "./security-gate-evaluator"
@@ -17,4 +16,5 @@ export * from "./synergy-finops-validator"
 export * from "./tenant-provisioner"
 export * from "./trace-collector"
 export * from "./trace-graph-server"
+
 

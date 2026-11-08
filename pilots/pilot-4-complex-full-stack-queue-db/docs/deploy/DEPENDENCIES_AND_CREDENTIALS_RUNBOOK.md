@@ -1,4 +1,0 @@
-# Runbook de Instalação de Dependências e Criação de Credenciais — pilot-complex-full-stack-queue-db
-
-1. Instalação de CLIs (`gcloud`, `gh`, `wrangler`, `aws`, `az`, `docker`, `gitleaks`).
-2. Configuração de Workload Identity Federation (OIDC Sem Chaves Estáticas) e Segredos no Vault/GitHub Secrets.
