@@ -24,7 +24,7 @@ describe("IMP-01 / VAL-01: agy-ensemble SQLite WAL & 15 MCP Tools", () => {
 		const team = ensembleCreate(db, {
 			name: "phase-01-core",
 			leadSessionId: "lead-sess-1",
-			projectPath: "E:/Projects/demo",
+			projectPath: "/workspace/demo",
 		});
 
 		expect(team.name).toBe("phase-01-core");

@@ -28,5 +28,5 @@ Em qualquer projeto onde o workflow `agy-ensemble` atue (novo ou brownfield):
 ## 2. Regra para a Própria Skill `agy-ensemble`
 
 1. **Evolução da Skill:**
-   - Sempre que uma nova ferramenta MCP, nova etapa do workflow, novo template em `templates/tech-specs/` ou nova regra for introduzida na skill `agy-ensemble`, o arquivo [`README.md`](file:///E:/Projects/agy-ensemble/README.md) da raiz da skill DEVE ser imediatamente atualizado em sincronia.
-   - O teste automatizado de integridade [`test/readme-sync-gate.test.ts`](file:///E:/Projects/agy-ensemble/test/readme-sync-gate.test.ts) valida se todas as ferramentas do ensemble e todas as 12 etapas do workflow constam descritas no `README.md`.
+   - Sempre que uma nova ferramenta MCP, nova etapa do workflow, novo template em `templates/tech-specs/` ou nova regra for introduzida na skill `agy-ensemble`, o arquivo [`README.md`](../README.md) da raiz da skill DEVE ser imediatamente atualizado em sincronia.
+   - O teste automatizado de integridade [`test/readme-sync-gate.test.ts`](../test/readme-sync-gate.test.ts) valida se todas as ferramentas do ensemble e todas as 12 etapas do workflow constam descritas no `README.md`.

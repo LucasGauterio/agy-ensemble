@@ -146,7 +146,7 @@ Antes de iniciar a execução dos Teammates na Etapa 8, o Lead apresenta ao usu�
 
 ## 7. Isolamento Multi-Tenant em Containers Compartilhados & Vault
 
-Para evitar que múltiplos Teammates paralelos colidam no banco de dados, no cache ou nas filas — e sem desperdiçar dezenas de gigabytes de RAM subindo bancos duplicados por worktree — o `docker-compose.infra.yml` mantém **uma única instância compartilhada** de cada serviço, e o **`TenantProvisioner` ([`src/tenant-provisioner.ts`](file:///E:/Projects/agy-ensemble/src/tenant-provisioner.ts)) isola logicamente cada SI**:
+Para evitar que múltiplos Teammates paralelos colidam no banco de dados, no cache ou nas filas — e sem desperdiçar dezenas de gigabytes de RAM subindo bancos duplicados por worktree — o `docker-compose.infra.yml` mantém **uma única instância compartilhada** de cada serviço, e o **`TenantProvisioner` ([`src/tenant-provisioner.ts`](src/tenant-provisioner.ts)) isola logicamente cada SI**:
 
 | Recurso Compartilhado | Isolamento Exclusivo Provisionado por Teammate (`SI-NN.X`) | Limpeza no `ensemble_shutdown` |
 | :--- | :--- | :--- |
@@ -253,10 +253,10 @@ No `agy-ensemble`, **Compliance com a LGPD (Lei nº 13.709/2018), Segurança OWA
 | `ensemble_view` | Qualquer membro | Inspeciona a sessão ativa de um Teammate. |
 | `ensemble_cleanup` | Somente Lead | Arquiva o time e preserva como *safety-net* quaisquer branches remanescentes. |
 
-### 12.2 Estrutura do Repositório (`E:\Projects\agy-ensemble`)
+### 12.2 Estrutura do Repositório (`agy-ensemble`)
 
 ```text
-E:\Projects\agy-ensemble\
+agy-ensemble/
 ├── .gemini-plugin/plugin.json             # Manifesto do Plugin Google Antigravity
 ├── mcp.json                               # Configuração do servidor MCP agy-ensemble
 ├── hooks/hooks.json                       # Hooks PreToolUse / PostToolUse (Isolamento, Gitleaks, FinOps)

@@ -89,4 +89,31 @@ describe("IMP-15 / VAL-15: Official README.md Completeness & Architectural Cover
 		expect(content).toContain("ensemble_merge");
 		expect(content).toContain("bun run verify");
 	});
+
+	test("guarantees README.md and documentation contain no hardcoded local absolute paths", () => {
+		const rootDir = path.resolve(import.meta.dir, "..");
+		const docFiles = [
+			path.join(rootDir, "README.md"),
+			path.join(rootDir, "SKILL.md"),
+			path.join(rootDir, "AGENTS.md"),
+			path.join(rootDir, "rules", "mandatory-readme-sync.md"),
+			path.join(rootDir, "docs", "IMPLEMENTATION_AND_VALIDATION.md"),
+		];
+
+		const forbiddenPatterns = [
+			/E:[\\\/]Projects/i,
+			/C:[\\\/]Users/i,
+			/file:\/\/\/[A-Za-z]:/i,
+		];
+
+		for (const docFile of docFiles) {
+			if (fs.existsSync(docFile)) {
+				const text = fs.readFileSync(docFile, "utf-8");
+				for (const pattern of forbiddenPatterns) {
+					const match = text.match(pattern);
+					expect(match).toBeNull();
+				}
+			}
+		}
+	});
 });
