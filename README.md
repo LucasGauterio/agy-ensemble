@@ -8,17 +8,19 @@
 ## Sumário
 
 1. [Visão Geral e Arquitetura de Papéis](#1-visão-geral-e-arquitetura-de-papéis)
-2. [Regras Pétreas e Invariantes Inegociáveis](#2-regras-pétreas-e-invariantes-inegociáveis)
-3. [O Pipeline Unificado Fim a Fim (`Etapa 0.0` a `Etapa 11`)](#3-o-pipeline-unificado-fim-a-fim-etapa-00-a-etapa-11)
-4. [Onboarding Brownfield (`Etapa 0.0`), Entrevista Iterativa (`Etapa 1.0`) e Relatório Executivo (`Etapa 7.5`)](#4-onboarding-brownfield-etapa-00-entrevista-iterativa-etapa-10-e-relatório-executivo-etapa-75)
-5. [Inteligência Arquitetural: `Stack Synergy Engine`, Volumetria em 3 Faixas, Viabilidade Econômica & Context7](#5-inteligência-arquitetural-stack-synergy-engine-volumetria-em-3-faixas-viabilidade-econômica--context7)
-6. [Design System Vivo Code-First (Sem Figma) & Onda Zero](#6-design-system-vivo-code-first-sem-figma--onda-zero)
-7. [Isolamento Multi-Tenant em Containers Compartilhados & Vault](#7-isolamento-multi-tenant-em-containers-compartilhados--vault)
-8. [Mandato `NFR-0` & Compliance Obrigatório com a LGPD (Lei nº 13.709/2018)](#8-mandato-nfr-0--compliance-obrigatório-com-a-lgpd-lei-nº-137092018)
-9. [Engenharia de Qualidade (3 Camadas + Reports Nativos + SonarQube) & Segurança Ofensiva/Defensiva (`SAST`, `DAST`, `PenTests`)](#9-engenharia-de-qualidade-3-camadas--reports-nativos--sonarqube--segurança-ofensivadefensiva-sast-dast-pentests)
-10. [Live Execution Trace Graph UI (*Mission Control*), FinOps (`$` e Tempo) & Auto-Evolução (`Etapa 10`)](#10-live-execution-trace-graph-ui-mission-control-finops--e-tempo--auto-evolução-etapa-10)
-11. [Publicação Produtiva Cloud (`Etapa 11` — GitHub Actions First) & Os 3 Manuais Operacionais](#11-publicação-produtiva-cloud-etapa-11--github-actions-first--os-3-manuais-operacionais)
-12. [Instalação, As 15 Tools MCP, Estrutura do Repositório e Comandos de Verificação](#12-instalação-as-15-tools-mcp-estrutura-do-repositório-e-comandos-de-verificação)
+2. [Como Instalar e Configurar](#2-como-instalar-e-configurar)
+3. [Como Utilizar na Prática (Workflows do Dia a Dia)](#3-como-utilizar-na-prática-workflows-do-dia-a-dia)
+4. [Regras Pétreas e Invariantes Inegociáveis](#4-regras-pétreas-e-invariantes-inegociáveis)
+5. [O Pipeline Unificado Fim a Fim (`Etapa 0.0` a `Etapa 11`)](#5-o-pipeline-unificado-fim-a-fim-etapa-00-a-etapa-11)
+6. [Onboarding Brownfield (`Etapa 0.0`), Entrevista Iterativa (`Etapa 1.0`), Relatório Executivo (`Etapa 7.5`) e Sincronia README](#6-onboarding-brownfield-etapa-00-entrevista-iterativa-etapa-10-relatório-executivo-etapa-75-e-sincronia-readme)
+7. [Inteligência Arquitetural: `Stack Synergy Engine`, Volumetria em 3 Faixas, Viabilidade Econômica & Context7](#7-inteligência-arquitetural-stack-synergy-engine-volumetria-em-3-faixas-viabilidade-econômica--context7)
+8. [Design System Vivo Code-First (Sem Figma) & Onda Zero](#8-design-system-vivo-code-first-sem-figma--onda-zero)
+9. [Isolamento Multi-Tenant em Containers Compartilhados & Vault](#9-isolamento-multi-tenant-em-containers-compartilhados--vault)
+10. [Mandato `NFR-0` & Compliance Obrigatório com a LGPD (Lei nº 13.709/2018)](#10-mandato-nfr-0--compliance-obrigatório-com-a-lgpd-lei-nº-137092018)
+11. [Engenharia de Qualidade (3 Camadas + Reports Nativos + SonarQube) & Segurança Ofensiva/Defensiva (`SAST`, `DAST`, `PenTests`)](#11-engenharia-de-qualidade-3-camadas--reports-nativos--sonarqube--segurança-ofensivadefensiva-sast-dast-pentests)
+12. [Live Execution Trace Graph UI (*Mission Control*), FinOps (`$` e Tempo) & Auto-Evolução (`Etapa 10`)](#12-live-execution-trace-graph-ui-mission-control-finops--e-tempo--auto-evolução-etapa-10)
+13. [Publicação Produtiva Cloud (`Etapa 11` — GitHub Actions First) & Os 3 Manuais Operacionais](#13-publicação-produtiva-cloud-etapa-11--github-actions-first--os-3-manuais-operacionais)
+14. [As 15 Tools MCP, Estrutura do Repositório e Comandos de Verificação](#14-as-15-tools-mcp-estrutura-do-repositório-e-comandos-de-verificação)
 
 ---
 
@@ -39,7 +41,118 @@ O **`agy-ensemble`** resolve dois problemas clássicos do desenvolvimento assist
 
 ---
 
-## 2. Regras Pétreas e Invariantes Inegociáveis
+## 2. Como Instalar e Configurar
+
+### Pré-requisitos
+- **Node.js**: `>= 24.0.0` ou **Bun**: `>= 1.0.0`
+- **Git**: `>= 2.30.0`
+- **Docker & Docker Compose**: para execução dos containers de infraestrutura e cofre Vault da Onda Zero
+- **Google Antigravity IDE / CLI (`agy`)** ou ambiente compatível com OpenCode / MCP
+
+---
+
+### Instalação Passo a Passo
+
+1. **Clonar o Repositório:**
+   ```bash
+   git clone https://github.com/LucasGauterio/agy-ensemble.git
+   cd agy-ensemble
+   ```
+
+2. **Instalar Dependências e Compilar:**
+   ```bash
+   # Com Bun (recomendado):
+   bun install
+   bun run build
+
+   # Ou com Node/npm:
+   npm install
+   npm run build
+   ```
+
+3. **Registrar como Servidor MCP no Antigravity:**
+   Adicione o servidor MCP ao seu arquivo de configuração (`~/.gemini/antigravity/mcp.json` ou `./mcp.json` na raiz do seu projeto):
+   ```json
+   {
+     "mcpServers": {
+       "agy-ensemble": {
+         "command": "node",
+         "args": ["dist/mcp-server.js"],
+         "env": {
+           "ENSEMBLE_DB_PATH": ".ensemble/team.db"
+         }
+       }
+     }
+   }
+   ```
+
+4. **Habilitar a Skill no Antigravity:**
+   Para habilitar a invocação direta via comando slash `/agy-ensemble`, aponte para a pasta da skill nas configurações de plugins/skills do Antigravity ou copie/vincule a pasta para o diretório de customizações:
+   ```bash
+   # Exemplo via symlink para o diretório de skills do Antigravity:
+   ln -s "$(pwd)" ~/.gemini/antigravity/skills/agy-ensemble
+   ```
+
+---
+
+## 3. Como Utilizar na Prática (Workflows do Dia a Dia)
+
+O **`agy-ensemble`** funciona de forma transparente através do chat do Antigravity, acionando o Lead Maestro e seus Teammates especializados.
+
+### Cenário A: Novo Projeto do Zero (Greenfield)
+Quando você quer criar um novo sistema completo a partir de uma ideia ou especificação:
+
+1. **Disparar o Workflow no Chat:**
+   ```text
+   /agy-ensemble "Construir uma plataforma de telemedicina completa com agendamento de consultas, prontuário eletrônico e sala de videochamada"
+   ```
+2. **Entrevista Iterativa de Presunções (`Etapa 1.0`):**
+   - O Lead identifica automaticamente ambiguidades e presunções técnicas.
+   - Em vez de parar a cada minuto, ele agrupa **3 a 5 perguntas objetivas de múltipla escolha** via `ask_question`, trazendo sua recomendação `(Recommended)` na primeira opção.
+   - Ao responder, ele sintetiza a **`Requisição Consolidada Oficial`**, que substitui o prompt inicial e blinda o projeto contra retrabalho.
+3. **Planejamento Autônomo e Relatório Executivo:**
+   - O Lead projeta a arquitetura, avalia o `Stack Synergy Score`, calcula o custo de nuvem nas 3 faixas (`Seed`, `Growth`, `Scale`), sintetiza o Design System Code-First e a **Onda Zero (`SI-NN.0.0` com Vault + LGPD + infra)**.
+   - Ele apresenta o **Relatório Executivo de Planejamento** com o orçamento de tokens/custo (`$`) e tempo previsto.
+4. **Execução Multi-Agente Concorrente (`Etapa 8`):**
+   - O Lead spawna **1 Teammate dedicado por SI** em `Workspace: 'share'` com containers e schemas isolados (`s_si_nn_x`).
+   - Cada Teammate constrói o código, roda os testes de 3 camadas, executa SAST/Gitleaks e submete o `<si-report>`.
+5. **Quality Gates, PenTests e Entrega:**
+   - O Lead valida cobertura `AC-1..N`, SonarQube Rating A, DAST e PenTests do `worker-pentest`.
+   - Faz o squash-merge com preservação de branch, atualiza o `README.md` da aplicação e executa o deploy produtivo configurado.
+
+---
+
+### Cenário B: Projeto com Código Já Existente (Brownfield Onboarding)
+Se você já possui um repositório existente com código (`src/`, `app/`, etc.) e precisa de uma nova funcionalidade ou refatoração:
+
+1. **Chamar a Skill no Repositório Existente:**
+   ```text
+   /agy-ensemble "Implementar checkout transparente com split de pagamentos PIX"
+   ```
+2. **Bloqueio e Análise Reversa pelo Brownfield Gate (`Etapa 0.0`):**
+   - O sistema detecta a presença de código prévio e audita se todos os artefatos de governança existem e estão 100% sincronizados (`0 drift`).
+   - **Se faltar documentação ou houver código não rastreado:** O início da nova feature é temporariamente bloqueado. O Lead executa a **engenharia reversa da codebase**, mapeando componentes, rotas e serviços existentes e gerando retroativamente `docs/PRD.md`, `docs/RFC.md`, `docs/FDD.md`, `docs/DESIGN_SYSTEM.md`, `docs/TRACKER.md` e o `README.md` sincronizado.
+3. **Evolução Segura:**
+   - Com o baseline consolidado e `0 drift`, o Lead desbloqueia a etapa de planejamento da nova feature solicitada, garantindo que nada no código existente seja quebrado ou duplicado.
+
+---
+
+### Cenário C: Comandos Slash e Operação Granular
+Você também pode acionar etapas individuais do pipeline conforme sua necessidade:
+
+| Comando | Descrição |
+| :--- | :--- |
+| `/agy-ensemble <pedido>` | Dispara o workflow autônomo completo de engenharia em fases. |
+| `/init-project` | Executa o Onboarding Brownfield (`Etapa 0.0`) e a Entrevista Iterativa (`Etapa 1.0`). |
+| `/research <fase>` | Executa a pesquisa de ecossistema, compatibilidade e volumetria da fase. |
+| `/plan-build <NN>` | Constrói a especificação técnica da fase, Onda Zero e o fatiamento em SIs. |
+| `/implement <NN>` | Executa a implementação SI a SI em modo contínuo autônomo. |
+| `/trace-graph` | Abre o painel visual *Mission Control* (`sidecar://agy-ensemble/trace-graph`). |
+| `/cloud-release` | Executa o pipeline de publicação cloud e auditoria dos 3 manuais humanos. |
+
+---
+
+## 4. Regras Pétreas e Invariantes Inegociáveis
 
 1. **Gate Bloqueante Brownfield & Sincronia Codebase ↔ Documentação (`Etapa 0.0`):**
    Os agentes da skill **jamais iniciam novos trabalhos** se o repositório já tiver código implementado sem os artefatos do workflow (`AGENTS.md`, `CLAUDE.md`, `CONTEXT.md`, `docs/PRD.md`, `docs/RFC.md`, `docs/FDD.md`, `docs/DESIGN_SYSTEM.md`, `docs/adrs/`, `docs/project-plan.md`, `docs/phases/phase-01..K/{phase-*.md, progress.md}`, `docs/TRACKER.md`, `docs/VALIDATION.md`) ou se houver qualquer divergência (`drift > 0`) entre o código-fonte e a documentação.
@@ -56,7 +169,7 @@ O **`agy-ensemble`** resolve dois problemas clássicos do desenvolvimento assist
 
 ---
 
-## 3. O Pipeline Unificado Fim a Fim (`Etapa 0.0` a `Etapa 11`)
+## 5. O Pipeline Unificado Fim a Fim (`Etapa 0.0` a `Etapa 11`)
 
 ```mermaid
 flowchart TB
@@ -80,7 +193,7 @@ flowchart TB
 
 ---
 
-## 4. Onboarding Brownfield (`Etapa 0.0`), Entrevista Iterativa (`Etapa 1.0`) e Relatório Executivo (`Etapa 7.5`)
+## 6. Onboarding Brownfield (`Etapa 0.0`), Entrevista Iterativa (`Etapa 1.0`), Relatório Executivo (`Etapa 7.5`) e Sincronia README
 
 ### 4.1 `Etapa 0.0`: Projetos com Código Já Implementado (*Brownfield Gate*)
 Quando acionado em um repositório que já possui código (`src/`, `app/`, `packages/`):
@@ -116,7 +229,7 @@ Antes de iniciar a execução dos Teammates na Etapa 8, o Lead apresenta ao usu�
 
 ---
 
-## 5. Inteligência Arquitetural: `Stack Synergy Engine`, Volumetria em 3 Faixas, Viabilidade Econômica & Context7
+## 7. Inteligência Arquitetural: `Stack Synergy Engine`, Volumetria em 3 Faixas, Viabilidade Econômica & Context7
 
 1. **`Stack Synergy Engine` & Auto-Decisão em `/research`:**
    - Avalia bibliotecas pelo **Score de Sinergia do Ecossistema** (tipagem ponta a ponta Backend ↔ ORM ↔ DB ↔ UI, suporte nativo a multi-tenancy por schema/prefixo, integração com OpenTelemetry/Pino/Vault e velocidade de testes em container).
@@ -133,7 +246,7 @@ Antes de iniciar a execução dos Teammates na Etapa 8, o Lead apresenta ao usu�
 
 ---
 
-## 6. Design System Vivo Code-First (Sem Figma) & Onda Zero
+## 8. Design System Vivo Code-First (Sem Figma) & Onda Zero
 
 - O workflow **não exige URLs do Figma**: toda a engenharia visual opera em modo **Code-First Design System** governado por `docs/DESIGN_SYSTEM.md` e tokens CSS semânticos (`@theme` em `src/styles/globals.css`).
 - A skill `/screen-inventory` classifica cada componente necessário para a fase em:
@@ -144,7 +257,7 @@ Antes de iniciar a execução dos Teammates na Etapa 8, o Lead apresenta ao usu�
 
 ---
 
-## 7. Isolamento Multi-Tenant em Containers Compartilhados & Vault
+## 9. Isolamento Multi-Tenant em Containers Compartilhados & Vault
 
 Para evitar que múltiplos Teammates paralelos colidam no banco de dados, no cache ou nas filas — e sem desperdiçar dezenas de gigabytes de RAM subindo bancos duplicados por worktree — o `docker-compose.infra.yml` mantém **uma única instância compartilhada** de cada serviço, e o **`TenantProvisioner` ([`src/tenant-provisioner.ts`](src/tenant-provisioner.ts)) isola logicamente cada SI**:
 
@@ -157,7 +270,7 @@ Para evitar que múltiplos Teammates paralelos colidam no banco de dados, no cac
 
 ---
 
-## 8. Mandato `NFR-0` & Compliance Obrigatório com a LGPD (Lei nº 13.709/2018)
+## 10. Mandato `NFR-0` & Compliance Obrigatório com a LGPD (Lei nº 13.709/2018)
 
 No `agy-ensemble`, **Compliance com a LGPD (Lei nº 13.709/2018), Segurança OWASP Zero-Trust, Cofre de Segredos (Vault + Gitleaks), Logs Estruturados e Observabilidade OpenTelemetry são requisitos implícitos obrigatórios (Mandato `NFR-0`) em 100% dos projetos e fases**, independentemente do que o usuário solicitar:
 
@@ -180,7 +293,7 @@ No `agy-ensemble`, **Compliance com a LGPD (Lei nº 13.709/2018), Segurança OWA
 
 ---
 
-## 9. Engenharia de Qualidade (3 Camadas + Reports Nativos + SonarQube) & Segurança Ofensiva/Defensiva (`SAST`, `DAST`, `PenTests`)
+## 11. Engenharia de Qualidade (3 Camadas + Reports Nativos + SonarQube) & Segurança Ofensiva/Defensiva (`SAST`, `DAST`, `PenTests`)
 
 ### 9.1 Cobertura `100% AC-1..N`, 3 Camadas de Teste, Reports Nativos e SonarQube Quality Gate
 - **Hard Gate de Cobertura de Critérios de Aceite (`/plan-test-specs`):** Nenhuma fase avança para a Etapa 8 se houver qualquer `AC-1..N` sem cobertura mapeada nas 3 camadas (`Unit`, `Integration`, `E2E`).
@@ -202,7 +315,7 @@ No `agy-ensemble`, **Compliance com a LGPD (Lei nº 13.709/2018), Segurança OWA
 
 ---
 
-## 10. Live Execution Trace Graph UI (*Mission Control*), FinOps (`$` e Tempo) & Auto-Evolução (`Etapa 10`)
+## 12. Live Execution Trace Graph UI (*Mission Control*), FinOps (`$` e Tempo) & Auto-Evolução (`Etapa 10`)
 
 - **Painel Sidecar (`sidecar://agy-ensemble/trace-graph`):**
   - **Zoom Semântico em 3 Níveis:**
@@ -217,7 +330,7 @@ No `agy-ensemble`, **Compliance com a LGPD (Lei nº 13.709/2018), Segurança OWA
 
 ---
 
-## 11. Publicação Produtiva Cloud (`Etapa 11` — GitHub Actions First) & Os 3 Manuais Operacionais
+## 13. Publicação Produtiva Cloud (`Etapa 11` — GitHub Actions First) & Os 3 Manuais Operacionais
 
 - **Preferência por Deploy via GitHub Actions (OIDC Sem Chaves Estáticas):**
   - Todo projeto recebe `.github/workflows/ci-quality-gate.yml` e `.github/workflows/cd-production.yml` com autenticação federada OIDC, execução automática de migrations, *Smoke Tests* pós-deploy e **auto-rollback** em caso de falha nas probes `/health/ready`.
@@ -231,9 +344,9 @@ No `agy-ensemble`, **Compliance com a LGPD (Lei nº 13.709/2018), Segurança OWA
 
 ---
 
-## 12. Instalação, As 15 Tools MCP, Estrutura do Repositório e Comandos de Verificação
+## 14. As 15 Tools MCP, Estrutura do Repositório e Comandos de Verificação
 
-### 12.1 As 15 Ferramentas do Servidor MCP (`agy-ensemble`)
+### 14.1 As 15 Ferramentas do Servidor MCP (`agy-ensemble`)
 
 | Ferramenta MCP | Quem Pode Usar | Finalidade |
 | :--- | :--- | :--- |
@@ -253,7 +366,7 @@ No `agy-ensemble`, **Compliance com a LGPD (Lei nº 13.709/2018), Segurança OWA
 | `ensemble_view` | Qualquer membro | Inspeciona a sessão ativa de um Teammate. |
 | `ensemble_cleanup` | Somente Lead | Arquiva o time e preserva como *safety-net* quaisquer branches remanescentes. |
 
-### 12.2 Estrutura do Repositório (`agy-ensemble`)
+### 14.2 Estrutura do Repositório (`agy-ensemble`)
 
 ```text
 agy-ensemble/
@@ -288,7 +401,7 @@ agy-ensemble/
 └── test/                                  # Suíte automatizada de validação (VAL-00 a VAL-15)
 ```
 
-### 12.3 Comandos de Build, Lint, Typecheck e Validação
+### 14.3 Comandos de Build, Lint, Typecheck e Validação
 
 ```bash
 # Verificar tipos (TypeScript Strict Mode)

@@ -90,6 +90,19 @@ describe("IMP-15 / VAL-15: Official README.md Completeness & Architectural Cover
 		expect(content).toContain("bun run verify");
 	});
 
+	test("guarantees README.md contains clear instructions on how to install and how to use", () => {
+		expect(fs.existsSync(README_PATH)).toBe(true);
+		const content = fs.readFileSync(README_PATH, "utf8");
+
+		expect(content).toContain("Como Instalar");
+		expect(content).toContain("Como Utilizar");
+		expect(content).toContain("git clone");
+		expect(content).toContain("mcp.json");
+		expect(content).toContain("/agy-ensemble");
+		expect(content).toContain("Greenfield");
+		expect(content).toContain("Brownfield");
+	});
+
 	test("guarantees README.md and documentation contain no hardcoded local absolute paths", () => {
 		const rootDir = path.resolve(import.meta.dir, "..");
 		const docFiles = [
