@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>agy-ensemble — Live Execution Trace Graph (Mission Control)</title>
+  <style>
+    :root {
+      --bg-canvas: #090d16;
+      --bg-panel: #111827;
+      --border-subtle: #1f2937;
+      --text-primary: #f9fafb;
+      --text-secondary: #9ca3af;
+      --status-running: #38bdf8;
+      --status-completed: #10b981;
+      --status-blocked: #f59e0b;
+      --status-failed: #ef4444;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg-canvas);
+      color: var(--text-primary);
+      display: grid;
+      grid-template-rows: 56px 1fr 48px;
+      height: 100vh;
+    }
+    header, footer {
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+    }
+    main {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      overflow: hidden;
+    }
+    .canvas-viewport {
+      padding: 20px;
+      overflow: auto;
+    }
+    .inspector-drawer {
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border-subtle);
+      padding: 16px;
+    }
+    .badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      background: #1e293b;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <strong>agy-ensemble Mission Control</strong>
+      <span class="badge" id="zoom-indicator">Zoom Semântico: Nível 1 (Macro) | Nível 2 (Meso DAG) | Nível 3 (Micro Spans)</span>
+    </div>
+    <div id="finops-hud">
+      Est. Cost: <strong>$0.00</strong> | Actual Cost: <strong>$0.00</strong> | Est. Time: <strong>0s</strong> | Actual Time: <strong>0s</strong>
+    </div>
+  </header>
+  <main>
+    <section class="canvas-viewport" aria-label="Live Execution DAG Canvas">
+      <div id="dag-nodes">Conectado ao stream SSE <code>GET /api/trace/stream</code>...</div>
+    </section>
+    <aside class="inspector-drawer" aria-label="Node Inspector Drawer">
+      <h3>Inspector (4 Abas)</h3>
+      <ul>
+        <li>1. Prompt &amp; Context</li>
+        <li>2. Diff &amp; Files</li>
+        <li>3. Tests &amp; Quality Gate (Sonar + JUnit + LCOV)</li>
+        <li>4. Logs &amp; Telemetry (PII Redacted)</li>
+      </ul>
+    </aside>
+  </main>
+  <footer>
+    <label for="time-scrub">Time-Travel Scrub Bar:</label>
+    <input id="time-scrub" type="range" min="0" max="100" value="100" style="width: 75%;" />
+  </footer>
+</body>
+</html>

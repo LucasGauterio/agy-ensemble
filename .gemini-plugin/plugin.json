@@ -1,0 +1,13 @@
+{
+  "id": "agy-ensemble",
+  "name": "Antigravity Ensemble — Autonomous Multi-Agent Engineering Workflow",
+  "version": "1.0.0",
+  "description": "Unifies documentation-first autonomous phased engineering with parallel multi-agent team orchestration, multi-tenant container isolation, LGPD compliance by default, SAST/DAST/PenTests, FinOps tracking, and Live Execution Trace Graph UI.",
+  "entry": {
+    "mcp": "./mcp.json",
+    "hooks": "./hooks/hooks.json",
+    "skills": ["./SKILL.md", "./skills"],
+    "agents": ["./agents"],
+    "sidecars": ["./sidecars/trace-graph/sidecar.json"]
+  }
+}

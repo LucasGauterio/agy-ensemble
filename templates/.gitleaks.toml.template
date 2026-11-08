@@ -1,0 +1,6 @@
+title = "agy-ensemble Gitleaks & LGPD Secret Protection Config"
+
+[[rules]]
+id = "generic-api-key"
+description = "Detect high-entropy API keys and tokens"
+regex = '''(?i)(sk-live-[a-z0-9]{16,}|ghp_[a-z0-9]{20,}|AKIA[0-9A-Z]{16})'''

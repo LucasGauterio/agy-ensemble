@@ -1,0 +1,8 @@
+{
+  "id": "trace-graph",
+  "title": "agy-ensemble — Live Execution Trace Graph (Mission Control)",
+  "uri": "sidecar://agy-ensemble/trace-graph",
+  "location": "aux-pane",
+  "entrypoint": "./web/index.html",
+  "sseEndpoint": "/api/trace/stream"
+}

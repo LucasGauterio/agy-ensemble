@@ -1,0 +1,4 @@
+# Code-First Design System — {{PROJECT_NAME}}
+
+- **Tokens (`@theme`):** Semantic color, typography, spacing, and elevation tokens.
+- **Accessibility & LGPD UI:** WCAG AA contrast, keyboard navigation, and LGPD Privacy by Default consent banner (`src/components/ui/lgpd-consent-banner.tsx`).

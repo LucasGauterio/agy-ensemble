@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "description": "Enforce sub-agent isolation, block git commit --no-verify (Gitleaks protection), and emit SPAN_START with estimated cost ($) and duration (ms)."
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "description": "Emit SPAN_END with actual cost ($), token counts, and duration (ms) to SQLite trace_nodes and SSE stream."
+      }
+    ]
+  }
+}

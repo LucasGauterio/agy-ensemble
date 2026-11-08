@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+reports/
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*

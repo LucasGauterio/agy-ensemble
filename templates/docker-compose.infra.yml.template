@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ensemble_admin
+      POSTGRES_PASSWORD: ensemble_dev_only_local_boot
+      POSTGRES_DB: app_shared
+  redis:
+    image: redis:7-alpine
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+  vault:
+    image: openbao/openbao:latest
+  sonarqube:
+    image: sonarqube:community
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable

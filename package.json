@@ -1,0 +1,31 @@
+{
+  "name": "agy-ensemble",
+  "version": "1.0.0",
+  "description": "Unified Autonomous Multi-Agent Engineering Workflow & Team Orchestration Plugin for Google Antigravity (AGY)",
+  "module": "src/index.ts",
+  "main": "dist/index.js",
+  "exports": {
+    ".": "./src/index.ts",
+    "./mcp": "./src/mcp-server.ts"
+  },
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "lint": "bunx biome lint src/ test/",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "build": "bun build src/index.ts src/mcp-server.ts --outdir dist --target node",
+    "verify": "bun run typecheck && bun test && bun run build"
+  },
+  "engines": {
+    "node": ">=24",
+    "bun": ">=1.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.6",
+    "@types/bun": "^1.4.4",
+    "@types/node": "^26.6.6",
+    "bun": "^1.4.4",
+    "typescript": "^5.9.3"
+  }
+}
