@@ -1,0 +1,13 @@
+name: Production Cloud Release (pilot-complex-full-stack-queue-db)
+on:
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy via OIDC (gcp-cloudflare-github | Supported: gcp, cloudflare, github, aws, azure)
+        run: echo "Deploying via GitHub Actions OIDC with automatic health-probe rollback"

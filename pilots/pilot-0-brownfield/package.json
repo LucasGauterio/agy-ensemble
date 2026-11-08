@@ -1,0 +1,10 @@
+{
+  "name": "pilot-brownfield-upgrade",
+  "version": "1.0.0",
+  "private": true,
+  "profile": "brownfield-upgrade",
+  "scripts": {
+    "test": "bash scripts/test-env/run-suite.sh",
+    "gate:phase": "bash scripts/test-env/run-phase-gate.sh"
+  }
+}

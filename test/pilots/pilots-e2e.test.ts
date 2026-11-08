@@ -1,12 +1,20 @@
 import fs from "node:fs"
-import os from "node:os"
 import path from "node:path"
 import { describe, expect, test } from "bun:test"
 import { executeUnifiedWorkflowPilot } from "../../src/pilot-runner"
 
+const PILOTS_ROOT = path.resolve(import.meta.dir, "..", "..", "pilots")
+
+function preparePilotDir(folderName: string): string {
+  const dir = path.join(PILOTS_ROOT, folderName)
+  fs.rmSync(dir, { recursive: true, force: true })
+  fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
 describe("Section 14.2: End-to-End Benchmark across 4 Pilot Projects + Brownfield (E2E-P0..P4)", () => {
   test("E2E-P0 (Brownfield): blocks new feature on undocumented codebase, runs Etapa 0.0 reverse analysis + retroactive planning + tracker sync (0 drift), then executes Phase 02", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pilot-p0-brownfield-"))
+    const dir = preparePilotDir("pilot-0-brownfield")
     fs.mkdirSync(path.join(dir, "src", "legacy"), { recursive: true })
     fs.writeFileSync(
       path.join(dir, "src", "legacy", "customer.service.ts"),
@@ -24,12 +32,10 @@ describe("Section 14.2: End-to-End Benchmark across 4 Pilot Projects + Brownfiel
     expect(res.allGatesPassed).toBe(true)
     expect(fs.existsSync(path.join(dir, "docs", "TRACKER.md"))).toBe(true)
     expect(fs.existsSync(path.join(dir, "docs", "VALIDATION.md"))).toBe(true)
-
-    fs.rmSync(dir, { recursive: true, force: true })
   })
 
   test("E2E-P1 (Simple — UI Only): executes Etapas 0.0->11 with Code-First Design System, LGPD Consent UI, parallel visual waves, Unit + Playwright E2E, and Sonar Gate", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pilot-p1-ui-"))
+    const dir = preparePilotDir("pilot-1-simple-ui")
 
     const res = await executeUnifiedWorkflowPilot({
       projectDir: dir,
@@ -44,12 +50,10 @@ describe("Section 14.2: End-to-End Benchmark across 4 Pilot Projects + Brownfiel
     expect(res.leadDirectCodeWrites).toBe(0)
     expect(fs.existsSync(path.join(dir, "docs", "DESIGN_SYSTEM.md"))).toBe(true)
     expect(fs.existsSync(path.join(dir, "src", "components", "ui", "lgpd-consent-banner.tsx"))).toBe(true)
-
-    fs.rmSync(dir, { recursive: true, force: true })
   })
 
   test("E2E-P2 (Simple — Backend Only): executes Etapas 0.0->11 with Mandate NFR-0 (LGPD ROPA, [LGPD_REDACTED] logs, Vault, OTel), Supertest E2E, Sonar Gate, ZAP DAST, and API PenTest", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pilot-p2-backend-"))
+    const dir = preparePilotDir("pilot-2-simple-backend")
 
     const res = await executeUnifiedWorkflowPilot({
       projectDir: dir,
@@ -64,12 +68,10 @@ describe("Section 14.2: End-to-End Benchmark across 4 Pilot Projects + Brownfiel
     expect(fs.existsSync(path.join(dir, "docs", "deploy", "PRODUCTION_DEPLOY_GUIDE.md"))).toBe(true)
     expect(fs.existsSync(path.join(dir, "docs", "deploy", "DEPENDENCIES_AND_CREDENTIALS_RUNBOOK.md"))).toBe(true)
     expect(fs.existsSync(path.join(dir, "docs", "testing", "USER_TEST_PLAYBOOK.md"))).toBe(true)
-
-    fs.rmSync(dir, { recursive: true, force: true })
   })
 
   test("E2E-P3 (Moderate — UI + Cache + Backend): executes Etapas 0.0->11 with Full-Stack typed contracts, per-SI Redis ACL/prefix isolation, LGPD cache purge, and Rate-Limit/Cache PenTests", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pilot-p3-moderate-"))
+    const dir = preparePilotDir("pilot-3-moderate-ui-cache-backend")
 
     const res = await executeUnifiedWorkflowPilot({
       projectDir: dir,
@@ -82,12 +84,10 @@ describe("Section 14.2: End-to-End Benchmark across 4 Pilot Projects + Brownfiel
     expect(res.redisPrefixesDisjoint).toBe(true)
     expect(res.lgpdCompliant).toBe(true)
     expect(res.securityGatePassed).toBe(true)
-
-    fs.rmSync(dir, { recursive: true, force: true })
   })
 
   test("E2E-P4 (Complex — UI + Cache + Backend + Queue + Database across 2 Phases): proves quadruple SI isolation (Postgres + Redis + RabbitMQ + Vault), LGPD Vault Transit encryption + Crypto-Shredding, Race Condition PenTests, Trace Graph UI, and FinOps calibration across Phase 01 -> Phase 02", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pilot-p4-complex-"))
+    const dir = preparePilotDir("pilot-4-complex-full-stack-queue-db")
 
     const res = await executeUnifiedWorkflowPilot({
       projectDir: dir,
@@ -103,7 +103,5 @@ describe("Section 14.2: End-to-End Benchmark across 4 Pilot Projects + Brownfiel
     expect(res.traceGraphLevelsPopulated).toEqual([1, 2, 3])
     expect(res.finopsCalibratedAcrossPhases).toBe(true)
     expect(res.stage10PreventiveRulesGenerated).toBeGreaterThanOrEqual(1)
-
-    fs.rmSync(dir, { recursive: true, force: true })
   })
 })
