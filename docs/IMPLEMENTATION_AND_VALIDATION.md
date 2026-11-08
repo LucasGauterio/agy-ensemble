@@ -1,8 +1,8 @@
-# Matriz Oficial de Implementação (`IMP-00..15`), Validação (`VAL-00..15`) e Bateria de Projetos-Piloto (`E2E-P0..P4`)
+# Matriz Oficial de Implementação (`IMP-00..16`), Validação (`VAL-00..16`) e Bateria de Projetos-Piloto (`E2E-P0..P4`)
 
 Este documento governa a implementação e verificação empírica da skill/plugin **`agy-ensemble`**.
 
-## 1. Itens de Implementação e Validações Automatizadas (`27/27 Testes Passando — 217 Assertions`)
+## 1. Itens de Implementação e Validações Automatizadas (`30/30 Testes Passando — 335 Assertions`)
 
 | ID | Item de Implementação | Módulo / Artefato Alvo | Validação Executável (`VAL-*`) | Status |
 | :--- | :--- | :--- | :--- | :--- |
@@ -22,6 +22,7 @@ Este documento governa a implementação e verificação empírica da skill/plug
 | **`IMP-13`** | Etapa 10: Loop de Aprendizado Contínuo (`<friction-and-learnings>`) e Auto-Evolução de Regras | `src/learning-loop.ts`, `skills/plan-rule-author/SKILL.md` | **`VAL-13`**: `test/learning-loop.test.ts` (1 pass) | `[x] PASS` |
 | **`IMP-14`** | Etapa 11: Publicação Produtiva Cloud (`GitHub Actions First` + `gcloud`/`wrangler`/`aws`/`az` + 3 Manuais) | `src/cloud-release-validator.ts`, `skills/cloud-release/SKILL.md` | **`VAL-14`**: `test/cloud-release.test.ts` (1 pass) | `[x] PASS` |
 | **`IMP-15`** | Documentação Oficial Completa (`README.md` de 12 seções cobrindo toda a arquitetura e governança) | `README.md` | **`VAL-15`**: `test/readme-completeness.test.ts` (1 pass) | `[x] PASS` |
+| **`IMP-16`** | Port Completo das 27 Skills de Planejamento (>860 KB) + Integração Real de Ferramentas/Resiliência Ensemble | `skills/` (60 arquivos), `src/tools/` (16 arquivos), `src/watchdog.ts`, `src/recovery.ts`, `src/process.ts` | **`VAL-16`**: `test/skills-completeness.test.ts` (3 pass) | `[x] PASS` |
 
 ## 2. Bateria de Testes End-to-End nos Projetos-Piloto (`E2E-P0..P4`)
 

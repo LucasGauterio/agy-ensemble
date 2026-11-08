@@ -1,8 +1,8 @@
-import type { Database } from "./db"
+import type { Database } from "./db";
 
 /** Ordered SQL migrations for agy-ensemble SQLite WAL database. */
 export const MIGRATIONS: string[] = [
-  `
+	`
   CREATE TABLE IF NOT EXISTS project (
     id              TEXT PRIMARY KEY,
     name            TEXT NOT NULL,
@@ -141,25 +141,25 @@ export const MIGRATIONS: string[] = [
     time_updated        INTEGER NOT NULL
   );
   `,
-]
+];
 
 /**
  * Apply pending SQLite migrations using PRAGMA user_version.
  */
 export function applyMigrations(db: Database): void {
-  const row = db.query("PRAGMA user_version").get() as { user_version: number }
-  const current = row.user_version
+	const row = db.query("PRAGMA user_version").get() as { user_version: number };
+	const current = row.user_version;
 
-  for (let i = current; i < MIGRATIONS.length; i++) {
-    const migration = MIGRATIONS[i]
-    db.exec("BEGIN IMMEDIATE")
-    try {
-      if (migration) db.exec(migration)
-      db.exec(`PRAGMA user_version = ${i + 1}`)
-      db.exec("COMMIT")
-    } catch (err) {
-      db.exec("ROLLBACK")
-      throw err
-    }
-  }
+	for (let i = current; i < MIGRATIONS.length; i++) {
+		const migration = MIGRATIONS[i];
+		db.exec("BEGIN IMMEDIATE");
+		try {
+			if (migration) db.exec(migration);
+			db.exec(`PRAGMA user_version = ${i + 1}`);
+			db.exec("COMMIT");
+		} catch (err) {
+			db.exec("ROLLBACK");
+			throw err;
+		}
+	}
 }

@@ -1,8 +1,8 @@
 export interface ScreenInventoryResult {
-  requiresFigmaUrl: false
-  classifications: string[]
-  lgpdPrivacyPrimitiveIncluded: boolean
-  newOrExtendedPaths: string[]
+	requiresFigmaUrl: false;
+	classifications: string[];
+	lgpdPrivacyPrimitiveIncluded: boolean;
+	newOrExtendedPaths: string[];
 }
 
 /**
@@ -11,43 +11,45 @@ export interface ScreenInventoryResult {
  * and automatically including LGPD Privacy & Consent UI primitives.
  */
 export function buildCodeFirstScreenInventory(input: {
-  phaseNumber: string
-  existingComponents: string[]
-  requestedComponents: Array<{
-    name: string
-    mode: "reuse" | "extend" | "new"
-    path: string
-    extensionNote?: string
-  }>
+	phaseNumber: string;
+	existingComponents: string[];
+	requestedComponents: Array<{
+		name: string;
+		mode: "reuse" | "extend" | "new";
+		path: string;
+		extensionNote?: string;
+	}>;
 }): ScreenInventoryResult {
-  const classifications: string[] = []
-  const newOrExtendedPaths: string[] = []
+	const classifications: string[] = [];
+	const newOrExtendedPaths: string[] = [];
 
-  for (const item of input.requestedComponents) {
-    if (item.mode === "reuse") {
-      classifications.push(item.path)
-    } else if (item.mode === "extend") {
-      classifications.push(`${item.path} (extend: ${item.extensionNote ?? "enhance variant"})`)
-      newOrExtendedPaths.push(item.path)
-    } else {
-      classifications.push(`${item.path} (new)`)
-      newOrExtendedPaths.push(item.path)
-    }
-  }
+	for (const item of input.requestedComponents) {
+		if (item.mode === "reuse") {
+			classifications.push(item.path);
+		} else if (item.mode === "extend") {
+			classifications.push(
+				`${item.path} (extend: ${item.extensionNote ?? "enhance variant"})`,
+			);
+			newOrExtendedPaths.push(item.path);
+		} else {
+			classifications.push(`${item.path} (new)`);
+			newOrExtendedPaths.push(item.path);
+		}
+	}
 
-  // Always ensure LGPD Consent & Privacy Center UI primitive is included (Privacy by Default)
-  const lgpdBannerPath = "src/components/ui/lgpd-consent-banner.tsx"
-  if (!classifications.some((c) => c.includes(lgpdBannerPath))) {
-    classifications.push(`${lgpdBannerPath} (new)`)
-    newOrExtendedPaths.push(lgpdBannerPath)
-  }
+	// Always ensure LGPD Consent & Privacy Center UI primitive is included (Privacy by Default)
+	const lgpdBannerPath = "src/components/ui/lgpd-consent-banner.tsx";
+	if (!classifications.some((c) => c.includes(lgpdBannerPath))) {
+		classifications.push(`${lgpdBannerPath} (new)`);
+		newOrExtendedPaths.push(lgpdBannerPath);
+	}
 
-  return {
-    requiresFigmaUrl: false,
-    classifications,
-    lgpdPrivacyPrimitiveIncluded: true,
-    newOrExtendedPaths,
-  }
+	return {
+		requiresFigmaUrl: false,
+		classifications,
+		lgpdPrivacyPrimitiveIncluded: true,
+		newOrExtendedPaths,
+	};
 }
 
 /**
@@ -55,20 +57,21 @@ export function buildCodeFirstScreenInventory(input: {
  * so parallel feature teammates never collide on shared UI components.
  */
 export function synthesizeWaveZeroDesignSystemStep(
-  phaseNumber: string,
-  inventory: ScreenInventoryResult,
+	phaseNumber: string,
+	inventory: ScreenInventoryResult,
 ): {
-  siId: string
-  title: string
-  filesTouched: string[]
+	siId: string;
+	title: string;
+	filesTouched: string[];
 } {
-  return {
-    siId: `SI-${phaseNumber}.0.1`,
-    title: "Code-First Design System Tokens, Shared UI Primitives & LGPD Consent UI",
-    filesTouched: [
-      "docs/DESIGN_SYSTEM.md",
-      "src/styles/globals.css",
-      ...inventory.newOrExtendedPaths,
-    ],
-  }
+	return {
+		siId: `SI-${phaseNumber}.0.1`,
+		title:
+			"Code-First Design System Tokens, Shared UI Primitives & LGPD Consent UI",
+		filesTouched: [
+			"docs/DESIGN_SYSTEM.md",
+			"src/styles/globals.css",
+			...inventory.newOrExtendedPaths,
+		],
+	};
 }
