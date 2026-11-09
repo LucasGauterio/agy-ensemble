@@ -239,4 +239,52 @@ describe("IMP-01 / VAL-01: agy-ensemble SQLite WAL & 15 MCP Tools", () => {
 		});
 		expect(cleanup.teamStatus).toBe("archived");
 	});
+
+	test("handles MCP stdio JSON-RPC 2.0 protocol requests (initialize, tools/list, tools/call)", async () => {
+		const { handleMcpJsonRpcRequest } = await import("../src/mcp-server");
+		const db = createDb(":memory:");
+
+		// 1. initialize
+		const initRes = handleMcpJsonRpcRequest(db, {
+			jsonrpc: "2.0",
+			id: 1,
+			method: "initialize",
+		});
+		expect(initRes).not.toBeNull();
+		expect(
+			(initRes?.result as { serverInfo: { name: string } }).serverInfo.name,
+		).toBe("agy-ensemble");
+
+		// 2. tools/list
+		const listRes = handleMcpJsonRpcRequest(db, {
+			jsonrpc: "2.0",
+			id: 2,
+			method: "tools/list",
+		});
+		const tools = (listRes?.result as { tools: Array<{ name: string }> }).tools;
+		expect(tools.length).toBe(15);
+		const toolNames = tools.map((t) => t.name);
+		expect(toolNames).toContain("ensemble_create");
+		expect(toolNames).toContain("ensemble_import_phase_plan");
+
+		// 3. tools/call
+		const callRes = handleMcpJsonRpcRequest(db, {
+			jsonrpc: "2.0",
+			id: 3,
+			method: "tools/call",
+			params: {
+				name: "ensemble_create",
+				arguments: {
+					name: "rpc-team",
+					leadSessionId: "rpc-lead-1",
+				},
+			},
+		});
+		expect(callRes?.result).toBeDefined();
+		const resultObj = callRes?.result as {
+			content?: Array<{ text: string }>;
+		};
+		expect(resultObj.content).toBeDefined();
+		expect(resultObj.content?.[0]?.text).toContain("rpc-team");
+	});
 });

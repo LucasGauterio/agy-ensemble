@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
-import type { Database } from "./db";
+import readline from "node:readline";
+import { type Database, createDb } from "./db";
 
 export interface PhasePlanStepInput {
 	siId: string;
@@ -630,4 +631,535 @@ export function ensembleCleanup(
 	]);
 
 	return { teamStatus: "archived", safetyNetPreservedBranches };
+}
+
+export interface McpJsonRpcRequest {
+	jsonrpc?: string;
+	id?: string | number | null;
+	method: string;
+	params?: {
+		name?: string;
+		arguments?: Record<string, unknown>;
+		[key: string]: unknown;
+	};
+}
+
+export interface McpJsonRpcResponse {
+	jsonrpc: "2.0";
+	id: string | number | null;
+	result?: unknown;
+	error?: {
+		code: number;
+		message: string;
+		data?: unknown;
+	};
+}
+
+const MCP_TOOLS_MANIFEST = [
+	{
+		name: "ensemble_create",
+		description:
+			"Create a new team in SQLite WAL; caller becomes team lead with strict delegate: true",
+		inputSchema: {
+			type: "object",
+			properties: {
+				name: { type: "string" },
+				leadSessionId: { type: "string" },
+				projectPath: { type: "string" },
+			},
+			required: ["name", "leadSessionId"],
+		},
+	},
+	{
+		name: "ensemble_spawn",
+		description:
+			"Spawn a dedicated teammate for a single SI with workspace isolation and branch preservation",
+		inputSchema: {
+			type: "object",
+			properties: {
+				teamId: { type: "string" },
+				callerSessionId: { type: "string" },
+				name: { type: "string" },
+				agent: { type: "string" },
+				siId: { type: "string" },
+				prompt: { type: "string" },
+				workspace: { type: "string" },
+			},
+			required: ["teamId", "callerSessionId", "name", "agent", "prompt"],
+		},
+	},
+	{
+		name: "ensemble_message",
+		description:
+			"Send direct message between team members or report completion to lead",
+		inputSchema: {
+			type: "object",
+			properties: {
+				teamId: { type: "string" },
+				from: { type: "string" },
+				to: { type: "string" },
+				content: { type: "string" },
+			},
+			required: ["teamId", "from", "to", "content"],
+		},
+	},
+	{
+		name: "ensemble_broadcast",
+		description: "Broadcast a message to all members in the team",
+		inputSchema: {
+			type: "object",
+			properties: {
+				teamId: { type: "string" },
+				from: { type: "string" },
+				content: { type: "string" },
+			},
+			required: ["teamId", "from", "content"],
+		},
+	},
+	{
+		name: "ensemble_tasks_list",
+		description: "List all tasks on the shared board for the team",
+		inputSchema: {
+			type: "object",
+			properties: {
+				teamId: { type: "string" },
+			},
+			required: ["teamId"],
+		},
+	},
+	{
+		name: "ensemble_tasks_add",
+		description:
+			"Add tasks to the shared board with dependency edges and file touch tracking",
+		inputSchema: {
+			type: "object",
+			properties: {
+				teamId: { type: "string" },
+				tasks: { type: "array" },
+			},
+			required: ["teamId", "tasks"],
+		},
+	},
+	{
+		name: "ensemble_tasks_complete",
+		description: "Mark a task complete and unblock downstream DAG dependencies",
+		inputSchema: {
+			type: "object",
+			properties: {
+				taskId: { type: "string" },
+			},
+			required: ["taskId"],
+		},
+	},
+	{
+		name: "ensemble_claim",
+		description: "Atomically claim a pending task for a member",
+		inputSchema: {
+			type: "object",
+			properties: {
+				taskId: { type: "string" },
+				memberName: { type: "string" },
+			},
+			required: ["taskId", "memberName"],
+		},
+	},
+	{
+		name: "ensemble_results",
+		description: "Retrieve full message content or task findings by message ID",
+		inputSchema: {
+			type: "object",
+			properties: {
+				messageId: { type: "string" },
+			},
+			required: ["messageId"],
+		},
+	},
+	{
+		name: "ensemble_shutdown",
+		description:
+			"Request teammate shutdown and preserve git branch before aborting",
+		inputSchema: {
+			type: "object",
+			properties: {
+				teamId: { type: "string" },
+				callerSessionId: { type: "string" },
+				memberName: { type: "string" },
+				force: { type: "boolean" },
+			},
+			required: ["teamId", "callerSessionId", "memberName"],
+		},
+	},
+	{
+		name: "ensemble_merge",
+		description:
+			"Squash-merge a preserved teammate branch into target feature branch",
+		inputSchema: {
+			type: "object",
+			properties: {
+				teamId: { type: "string" },
+				callerSessionId: { type: "string" },
+				memberName: { type: "string" },
+				targetBranch: { type: "string" },
+			},
+			required: ["teamId", "callerSessionId", "memberName", "targetBranch"],
+		},
+	},
+	{
+		name: "ensemble_cleanup",
+		description:
+			"Archive team and preserve any remaining active member branches as safety net",
+		inputSchema: {
+			type: "object",
+			properties: {
+				teamId: { type: "string" },
+				callerSessionId: { type: "string" },
+			},
+			required: ["teamId", "callerSessionId"],
+		},
+	},
+	{
+		name: "ensemble_status",
+		description: "View team members, execution statuses, and task summaries",
+		inputSchema: {
+			type: "object",
+			properties: {
+				teamId: { type: "string" },
+			},
+			required: ["teamId"],
+		},
+	},
+	{
+		name: "ensemble_view",
+		description: "Inspect teammate session details and state",
+		inputSchema: {
+			type: "object",
+			properties: {
+				teamId: { type: "string" },
+				memberName: { type: "string" },
+			},
+			required: ["teamId", "memberName"],
+		},
+	},
+	{
+		name: "ensemble_import_phase_plan",
+		description:
+			"Import phase plan DAG enforcing File-Touch Disjointness across parallel SIs",
+		inputSchema: {
+			type: "object",
+			properties: {
+				teamId: { type: "string" },
+				phaseId: { type: "string" },
+				steps: { type: "array" },
+			},
+			required: ["teamId", "phaseId", "steps"],
+		},
+	},
+];
+
+/**
+ * Handle a single MCP JSON-RPC 2.0 request and return a response or null (for notifications).
+ *
+ * @param db - Database instance
+ * @param request - McpJsonRpcRequest
+ * @returns McpJsonRpcResponse or null
+ */
+export function handleMcpJsonRpcRequest(
+	db: Database,
+	request: McpJsonRpcRequest,
+): McpJsonRpcResponse | null {
+	const id = request.id ?? null;
+
+	if (request.method === "initialize") {
+		return {
+			jsonrpc: "2.0",
+			id,
+			result: {
+				protocolVersion: "2024-11-05",
+				capabilities: {
+					tools: {},
+				},
+				serverInfo: {
+					name: "agy-ensemble",
+					version: "1.0.0",
+				},
+			},
+		};
+	}
+
+	if (request.method === "notifications/initialized") {
+		return null;
+	}
+
+	if (request.method === "ping") {
+		return {
+			jsonrpc: "2.0",
+			id,
+			result: {},
+		};
+	}
+
+	if (request.method === "tools/list") {
+		return {
+			jsonrpc: "2.0",
+			id,
+			result: {
+				tools: MCP_TOOLS_MANIFEST,
+			},
+		};
+	}
+
+	if (request.method === "tools/call") {
+		const toolName = request.params?.name;
+		const args = request.params?.arguments ?? {};
+
+		try {
+			let resultPayload: unknown = null;
+
+			switch (toolName) {
+				case "ensemble_create":
+					resultPayload = ensembleCreate(db, {
+						name: String(args.name ?? "unnamed-team"),
+						leadSessionId: String(args.leadSessionId ?? "lead"),
+						projectPath: args.projectPath
+							? String(args.projectPath)
+							: undefined,
+					});
+					break;
+
+				case "ensemble_spawn":
+					resultPayload = ensembleSpawn(db, {
+						teamId: String(args.teamId),
+						callerSessionId: String(args.callerSessionId),
+						name: String(args.name),
+						agent: String(args.agent),
+						siId: args.siId ? String(args.siId) : undefined,
+						prompt: String(args.prompt),
+						planApproval: Boolean(args.planApproval),
+					});
+					break;
+
+				case "ensemble_message":
+					resultPayload = ensembleMessage(db, {
+						teamId: String(args.teamId),
+						fromName: String(args.fromName ?? args.from),
+						toName: String(args.toName ?? args.to),
+						content: String(args.content),
+					});
+					break;
+
+				case "ensemble_broadcast":
+					resultPayload = ensembleBroadcast(db, {
+						teamId: String(args.teamId),
+						fromName: String(args.fromName ?? args.from),
+						content: String(args.content),
+					});
+					break;
+
+				case "ensemble_tasks_list":
+					resultPayload = ensembleTasksList(db, {
+						teamId: String(args.teamId),
+					});
+					break;
+
+				case "ensemble_tasks_add":
+					resultPayload = ensembleTasksAdd(db, {
+						teamId: String(args.teamId),
+						siId: args.siId ? String(args.siId) : undefined,
+						content: String(args.content ?? ""),
+						priority:
+							args.priority === "high" || args.priority === "low"
+								? args.priority
+								: "medium",
+						dependsOn: Array.isArray(args.dependsOn)
+							? (args.dependsOn as string[])
+							: undefined,
+						filesTouched: Array.isArray(args.filesTouched)
+							? (args.filesTouched as string[])
+							: undefined,
+						estCostUsd:
+							typeof args.estCostUsd === "number" ? args.estCostUsd : undefined,
+						estDurationMs:
+							typeof args.estDurationMs === "number"
+								? args.estDurationMs
+								: undefined,
+					});
+					break;
+
+				case "ensemble_tasks_complete":
+					resultPayload = ensembleTasksComplete(db, {
+						teamId: String(args.teamId),
+						taskId: String(args.taskId),
+						actualCostUsd:
+							typeof args.actualCostUsd === "number"
+								? args.actualCostUsd
+								: undefined,
+						actualDurationMs:
+							typeof args.actualDurationMs === "number"
+								? args.actualDurationMs
+								: undefined,
+					});
+					break;
+
+				case "ensemble_claim":
+					resultPayload = ensembleClaim(db, {
+						teamId: String(args.teamId),
+						taskId: String(args.taskId),
+						memberName: String(args.memberName),
+					});
+					break;
+
+				case "ensemble_results":
+					resultPayload = ensembleResults(db, {
+						teamId: String(args.teamId),
+						messageId: String(args.messageId),
+					});
+					break;
+
+				case "ensemble_shutdown":
+					resultPayload = ensembleShutdown(db, {
+						teamId: String(args.teamId),
+						callerSessionId: String(args.callerSessionId),
+						memberName: String(args.memberName),
+						force: Boolean(args.force),
+					});
+					break;
+
+				case "ensemble_merge":
+					resultPayload = ensembleMerge(db, {
+						teamId: String(args.teamId),
+						callerSessionId: String(args.callerSessionId),
+						memberName: String(args.memberName),
+						targetBranch: String(args.targetBranch),
+					});
+					break;
+
+				case "ensemble_cleanup":
+					resultPayload = ensembleCleanup(db, {
+						teamId: String(args.teamId),
+						callerSessionId: String(args.callerSessionId),
+					});
+					break;
+
+				case "ensemble_status":
+					resultPayload = ensembleStatus(db, {
+						teamId: String(args.teamId),
+					});
+					break;
+
+				case "ensemble_view":
+					resultPayload = ensembleView(db, {
+						teamId: String(args.teamId),
+						memberName: String(args.memberName),
+					});
+					break;
+
+				case "ensemble_import_phase_plan":
+					resultPayload = ensembleImportPhasePlan(db, {
+						teamId: String(args.teamId),
+						phaseId: String(args.phaseId),
+						steps: (args.steps as PhasePlanStepInput[]) ?? [],
+					});
+					break;
+
+				default:
+					return {
+						jsonrpc: "2.0",
+						id,
+						error: {
+							code: -32601,
+							message: `Unknown MCP tool: ${toolName}`,
+						},
+					};
+			}
+
+			return {
+				jsonrpc: "2.0",
+				id,
+				result: {
+					content: [
+						{
+							type: "text",
+							text: JSON.stringify(resultPayload, null, 2),
+						},
+					],
+				},
+			};
+		} catch (err) {
+			return {
+				jsonrpc: "2.0",
+				id,
+				result: {
+					isError: true,
+					content: [
+						{
+							type: "text",
+							text: err instanceof Error ? err.message : String(err),
+						},
+					],
+				},
+			};
+		}
+	}
+
+	return {
+		jsonrpc: "2.0",
+		id,
+		error: {
+			code: -32601,
+			message: `Method not found: ${request.method}`,
+		},
+	};
+}
+
+/**
+ * Start the MCP JSON-RPC 2.0 stdio server listening on process.stdin.
+ *
+ * @param dbPath - Path to SQLite database (defaults to ENSEMBLE_DB_PATH or .ensemble/team.db)
+ */
+export function startMcpStdioServer(
+	dbPath: string = process.env.ENSEMBLE_DB_PATH || ".ensemble/team.db",
+): void {
+	const db = createDb(dbPath);
+	const rl = readline.createInterface({
+		input: process.stdin,
+		output: process.stdout,
+		terminal: false,
+	});
+
+	rl.on("line", (line) => {
+		const trimmed = line.trim();
+		if (!trimmed) return;
+
+		try {
+			const req = JSON.parse(trimmed) as McpJsonRpcRequest;
+			const res = handleMcpJsonRpcRequest(db, req);
+			if (res !== null) {
+				process.stdout.write(`${JSON.stringify(res)}\n`);
+			}
+		} catch (err) {
+			const errRes: McpJsonRpcResponse = {
+				jsonrpc: "2.0",
+				id: null,
+				error: {
+					code: -32700,
+					message: `Parse error: ${err instanceof Error ? err.message : String(err)}`,
+				},
+			};
+			process.stdout.write(`${JSON.stringify(errRes)}\n`);
+		}
+	});
+
+	process.on("SIGINT", () => {
+		process.exit(0);
+	});
+}
+
+// Auto-start stdio server when executed directly as CLI script
+if (
+	typeof process !== "undefined" &&
+	process.argv[1] &&
+	(process.argv[1].endsWith("mcp-server.js") ||
+		process.argv[1].endsWith("mcp-server.ts"))
+) {
+	startMcpStdioServer();
 }

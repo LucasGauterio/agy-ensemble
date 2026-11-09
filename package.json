@@ -6,7 +6,11 @@
   "main": "dist/index.js",
   "exports": {
     ".": "./src/index.ts",
-    "./mcp": "./src/mcp-server.ts"
+    "./mcp": "./src/mcp-server.ts",
+    "./runner": "./src/runner.ts"
+  },
+  "bin": {
+    "agy-ensemble": "./scripts/runner.ts"
   },
   "type": "module",
   "license": "MIT",
@@ -16,6 +20,7 @@
     "url": "https://github.com/LucasGauterio/agy-ensemble.git"
   },
   "scripts": {
+    "start:mcp": "bun dist/mcp-server.js",
     "lint": "bunx biome lint src/ test/",
     "typecheck": "tsc --noEmit",
     "test": "bun test",

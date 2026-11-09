@@ -51,7 +51,40 @@ O **`agy-ensemble`** resolve dois problemas clássicos do desenvolvimento assist
 
 ---
 
-### Instalação Passo a Passo
+### Instalação em Comando Único (Setup Automatizado)
+
+Para configurar e instalar tudo em um único comando (detecta runtime, instala dependências, compila bundles, vincula a skill e registra o servidor MCP no `mcp.json` do Antigravity):
+
+```bash
+# No Linux / macOS / WSL:
+./setup.sh               # ou ./agy-ensemble.sh setup
+
+# No Windows (PowerShell):
+.\setup.ps1              # ou .\agy-ensemble.ps1 setup
+```
+
+### Operação e Execução em Comando Único
+
+O mesmo script unificado provê acesso direto aos modos de execução e diagnóstico:
+
+```bash
+# Iniciar o Servidor MCP (stdio JSON-RPC 2.0 para o Antigravity IDE):
+./run.sh                 # ou ./agy-ensemble.sh run  (Linux / macOS)
+.\run.ps1                # ou .\agy-ensemble.ps1 run (Windows PowerShell)
+
+# Iniciar o painel visual Mission Control Trace Graph:
+./agy-ensemble.sh trace  # (ou .\agy-ensemble.ps1 trace)
+
+# Inspecionar o status do time, banco SQLite e link da skill:
+./agy-ensemble.sh status # (ou .\agy-ensemble.ps1 status)
+
+# Rodar a suíte de testes de validação completa:
+./agy-ensemble.sh verify # (ou .\agy-ensemble.ps1 verify)
+```
+
+---
+
+### Configuração Manual Passo a Passo (Opcional)
 
 1. **Clonar o Repositório:**
    ```bash
@@ -76,7 +109,7 @@ O **`agy-ensemble`** resolve dois problemas clássicos do desenvolvimento assist
    {
      "mcpServers": {
        "agy-ensemble": {
-         "command": "node",
+         "command": "bun",
          "args": ["dist/mcp-server.js"],
          "env": {
            "ENSEMBLE_DB_PATH": ".ensemble/team.db"

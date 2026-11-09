@@ -10,6 +10,7 @@ export * from "./learning-loop";
 export * from "./mcp-server";
 export * from "./nfr0-lgpd-auditor";
 export * from "./quality-gate-evaluator";
+export * from "./runner";
 export * from "./schema";
 export * from "./security-gate-evaluator";
 export * from "./synergy-finops-validator";
