@@ -1,6 +1,10 @@
 import crypto from "node:crypto";
 import readline from "node:readline";
 import { type Database, createDb } from "./db";
+import {
+	recordActionSpanComplete,
+	recordActionSpanStart,
+} from "./trace-collector";
 
 export interface PhasePlanStepInput {
 	siId: string;
@@ -856,6 +860,261 @@ const MCP_TOOLS_MANIFEST = [
 	},
 ];
 
+const TELEMETRY_MUTATION_TOOLS = new Set([
+	"ensemble_create",
+	"ensemble_import_phase_plan",
+	"ensemble_spawn",
+	"ensemble_claim",
+	"ensemble_message",
+	"ensemble_broadcast",
+	"ensemble_results",
+	"ensemble_tasks_add",
+	"ensemble_tasks_complete",
+	"ensemble_shutdown",
+	"ensemble_merge",
+	"ensemble_cleanup",
+]);
+
+function findOrCreateRootTraceSpan(db: Database, teamId: string): string | null {
+	const teamRow = db
+		.query("SELECT id, name FROM team WHERE id = ?")
+		.get(teamId) as { id: string; name: string } | undefined;
+	if (!teamRow) return null;
+
+	const existing = db
+		.query(
+			"SELECT id FROM trace_nodes WHERE team_id = ? AND zoom_level = 1 ORDER BY time_started ASC LIMIT 1",
+		)
+		.get(teamId) as { id: string } | undefined;
+	if (existing) return existing.id;
+
+	return recordActionSpanStart(db, {
+		teamId,
+		zoomLevel: 1,
+		nodeKind: "PIPELINE_STAGE",
+		label: `Team: ${teamRow.name}`,
+		estCostUsd: 0,
+		estDurationMs: 0,
+		payload: { teamId },
+	}).id;
+}
+
+function findOrCreateSiTraceSpan(
+	db: Database,
+	input: {
+		teamId: string;
+		parentId: string;
+		siId: string;
+		label?: string;
+		estCostUsd?: number;
+		estDurationMs?: number;
+	},
+): string {
+	const existing = db
+		.query(
+			"SELECT id FROM trace_nodes WHERE team_id = ? AND zoom_level = 2 AND si_id = ? LIMIT 1",
+		)
+		.get(input.teamId, input.siId) as { id: string } | undefined;
+	if (existing) return existing.id;
+
+	return recordActionSpanStart(db, {
+		teamId: input.teamId,
+		parentId: input.parentId,
+		zoomLevel: 2,
+		nodeKind: "SI_NODE",
+		label: input.label ?? input.siId,
+		siId: input.siId,
+		estCostUsd: input.estCostUsd ?? 0,
+		estDurationMs: input.estDurationMs ?? 0,
+		payload: { siId: input.siId },
+	}).id;
+}
+
+function recordToolCallTelemetry(
+	db: Database,
+	input: {
+		toolName: string;
+		args: Record<string, unknown>;
+		resultPayload: unknown;
+		durationMs: number;
+		errorMessage?: string;
+	},
+): void {
+	if (!TELEMETRY_MUTATION_TOOLS.has(input.toolName)) return;
+
+	const resObj =
+		input.resultPayload && typeof input.resultPayload === "object"
+			? (input.resultPayload as Record<string, unknown>)
+			: undefined;
+
+	const rawTeamId =
+		input.toolName === "ensemble_create" ? resObj?.id : input.args.teamId;
+	if (typeof rawTeamId !== "string" || !rawTeamId) return;
+
+	const rootId = findOrCreateRootTraceSpan(db, rawTeamId);
+	if (!rootId) return;
+
+	let parentSpanId = rootId;
+	let siRecorded = false;
+	const siId = typeof input.args.siId === "string" ? input.args.siId : undefined;
+	const agentName =
+		typeof input.args.name === "string"
+			? input.args.name
+			: typeof input.args.memberName === "string"
+				? input.args.memberName
+				: typeof input.args.fromName === "string"
+					? input.args.fromName
+					: undefined;
+
+	if (input.toolName === "ensemble_import_phase_plan" && !input.errorMessage) {
+		const steps = Array.isArray(input.args.steps)
+			? (input.args.steps as PhasePlanStepInput[])
+			: [];
+		const siSpanMap = new Map<string, string>();
+		for (const step of steps) {
+			const spanId = findOrCreateSiTraceSpan(db, {
+				teamId: rawTeamId,
+				parentId: rootId,
+				siId: step.siId,
+				label: `${step.siId}: ${step.title}`,
+				estCostUsd: step.estCostUsd,
+				estDurationMs: step.estDurationMs,
+			});
+			siSpanMap.set(step.siId, spanId);
+		}
+		for (const step of steps) {
+			const targetSpanId = siSpanMap.get(step.siId);
+			if (!targetSpanId) continue;
+			for (const dep of step.dependsOn ?? []) {
+				const sourceSpanId = siSpanMap.get(dep);
+				if (sourceSpanId) {
+					db.run(
+						`INSERT INTO trace_edges (id, team_id, source_id, target_id, edge_kind, label, time_created)
+             VALUES (?, ?, ?, ?, 'DEPENDS_ON', 'depends-on', ?)`,
+						[
+							`edge_${crypto.randomUUID()}`,
+							rawTeamId,
+							sourceSpanId,
+							targetSpanId,
+							Date.now(),
+						],
+					);
+				}
+			}
+		}
+	} else if (siId) {
+		parentSpanId = findOrCreateSiTraceSpan(db, {
+			teamId: rawTeamId,
+			parentId: rootId,
+			siId,
+			label:
+				typeof input.args.content === "string"
+					? `${siId}: ${input.args.content}`
+					: siId,
+			estCostUsd:
+				typeof input.args.estCostUsd === "number" ? input.args.estCostUsd : 0,
+			estDurationMs:
+				typeof input.args.estDurationMs === "number"
+					? input.args.estDurationMs
+					: 0,
+		});
+		siRecorded = true;
+		if (agentName) {
+			db.run("UPDATE trace_nodes SET agent_name = ? WHERE id = ?", [
+				agentName,
+				parentSpanId,
+			]);
+		}
+	}
+
+	if (input.toolName === "ensemble_tasks_complete" && !input.errorMessage) {
+		const taskId =
+			typeof input.args.taskId === "string" ? input.args.taskId : undefined;
+		if (taskId) {
+			const taskRow = db
+				.query("SELECT si_id FROM team_task WHERE id = ?")
+				.get(taskId) as { si_id: string | null } | undefined;
+			if (taskRow?.si_id) {
+				const siSpan = db
+					.query(
+						"SELECT id FROM trace_nodes WHERE team_id = ? AND zoom_level = 2 AND si_id = ? LIMIT 1",
+					)
+					.get(rawTeamId, taskRow.si_id) as { id: string } | undefined;
+				if (siSpan) {
+					parentSpanId = siSpan.id;
+					siRecorded = true;
+					recordActionSpanComplete(db, {
+						spanId: siSpan.id,
+						status: "completed",
+						inputTokens: 0,
+						outputTokens: 0,
+						actualCostUsd:
+							typeof input.args.actualCostUsd === "number"
+								? input.args.actualCostUsd
+								: 0,
+						actualDurationMs:
+							typeof input.args.actualDurationMs === "number"
+								? input.args.actualDurationMs
+								: input.durationMs,
+					});
+				}
+			}
+		}
+	}
+
+	if (input.toolName === "ensemble_cleanup" && !input.errorMessage) {
+		recordActionSpanComplete(db, {
+			spanId: rootId,
+			status: "completed",
+			inputTokens: 0,
+			outputTokens: 0,
+			actualCostUsd: 0,
+			actualDurationMs: input.durationMs,
+		});
+	}
+
+	const toolEstCost =
+		!siRecorded && typeof input.args.estCostUsd === "number"
+			? input.args.estCostUsd
+			: 0;
+	const toolEstDur =
+		!siRecorded && typeof input.args.estDurationMs === "number"
+			? input.args.estDurationMs
+			: 0;
+	const toolActualCost =
+		!siRecorded && typeof input.args.actualCostUsd === "number"
+			? input.args.actualCostUsd
+			: 0;
+
+	const toolSpan = recordActionSpanStart(db, {
+		teamId: rawTeamId,
+		parentId: parentSpanId,
+		zoomLevel: 3,
+		nodeKind: "TOOL_CALL",
+		label: input.toolName,
+		agentName,
+		siId,
+		estCostUsd: toolEstCost,
+		estDurationMs: toolEstDur,
+		payload: {
+			tool: input.toolName,
+			args: input.args,
+			...(input.errorMessage ? { error: input.errorMessage } : {}),
+		},
+	});
+	recordActionSpanComplete(db, {
+		spanId: toolSpan.id,
+		status: input.errorMessage ? "failed" : "completed",
+		inputTokens: 0,
+		outputTokens: 0,
+		actualCostUsd: toolActualCost,
+		actualDurationMs:
+			!siRecorded && typeof input.args.actualDurationMs === "number"
+				? input.args.actualDurationMs
+				: Math.max(1, input.durationMs),
+	});
+}
+
 /**
  * Handle a single MCP JSON-RPC 2.0 request and return a response or null (for notifications).
  *
@@ -911,6 +1170,7 @@ export function handleMcpJsonRpcRequest(
 	if (request.method === "tools/call") {
 		const toolName = request.params?.name;
 		const args = request.params?.arguments ?? {};
+		const startedAt = Date.now();
 
 		try {
 			let resultPayload: unknown = null;
@@ -1072,6 +1332,19 @@ export function handleMcpJsonRpcRequest(
 					};
 			}
 
+			try {
+				if (toolName) {
+					recordToolCallTelemetry(db, {
+						toolName,
+						args,
+						resultPayload,
+						durationMs: Date.now() - startedAt,
+					});
+				}
+			} catch {
+				// Telemetry must never break primary MCP tool execution
+			}
+
 			return {
 				jsonrpc: "2.0",
 				id,
@@ -1085,6 +1358,20 @@ export function handleMcpJsonRpcRequest(
 				},
 			};
 		} catch (err) {
+			const errorMessage = err instanceof Error ? err.message : String(err);
+			try {
+				if (toolName) {
+					recordToolCallTelemetry(db, {
+						toolName,
+						args,
+						resultPayload: null,
+						durationMs: Date.now() - startedAt,
+						errorMessage,
+					});
+				}
+			} catch {
+				// Ignore telemetry errors on failed tool calls
+			}
 			return {
 				jsonrpc: "2.0",
 				id,
@@ -1093,7 +1380,7 @@ export function handleMcpJsonRpcRequest(
 					content: [
 						{
 							type: "text",
-							text: err instanceof Error ? err.message : String(err),
+							text: errorMessage,
 						},
 					],
 				},

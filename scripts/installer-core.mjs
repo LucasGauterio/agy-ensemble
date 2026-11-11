@@ -515,8 +515,19 @@ export function syncProjectPluginDirectory(sourceDir, destDir, options = {}) {
 		return { path: destDir, action };
 	}
 
-	if (existingStat) {
+	if (isSymlink) {
 		fs.rmSync(destDir, { recursive: true, force: true });
+	} else if (existingStat) {
+		for (const deprecated of ["mcp.json", "hooks"]) {
+			try {
+				fs.rmSync(path.join(destDir, deprecated), {
+					recursive: true,
+					force: true,
+				});
+			} catch {
+				// Ignore if locked by active IDE session
+			}
+		}
 	}
 	copyPluginPayload(resolvedSource, destDir);
 

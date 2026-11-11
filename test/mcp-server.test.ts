@@ -286,5 +286,57 @@ describe("IMP-01 / VAL-01: agy-ensemble SQLite WAL & 15 MCP Tools", () => {
 		};
 		expect(resultObj.content).toBeDefined();
 		expect(resultObj.content?.[0]?.text).toContain("rpc-team");
+
+		const createdTeam = JSON.parse(resultObj.content?.[0]?.text ?? "{}") as {
+			id: string;
+		};
+
+		// 4. Verify automatic trace_nodes & trace_edges recording across MCP lifecycle calls
+		const importRes = handleMcpJsonRpcRequest(db, {
+			jsonrpc: "2.0",
+			id: 4,
+			method: "tools/call",
+			params: {
+				name: "ensemble_import_phase_plan",
+				arguments: {
+					teamId: createdTeam.id,
+					phaseId: "Phase-01",
+					steps: [
+						{
+							siId: "SI-01.1",
+							title: "Setup Auth",
+							dependsOn: [],
+							filesTouched: ["src/auth.ts"],
+							estCostUsd: 0.15,
+							estDurationMs: 30000,
+						},
+					],
+				},
+			},
+		});
+		expect(importRes?.result).toBeDefined();
+
+		const l1 = db
+			.query(
+				"SELECT * FROM trace_nodes WHERE team_id = ? AND zoom_level = 1",
+			)
+			.all(createdTeam.id) as Array<{ label: string }>;
+		const l2 = db
+			.query(
+				"SELECT * FROM trace_nodes WHERE team_id = ? AND zoom_level = 2",
+			)
+			.all(createdTeam.id) as Array<{ si_id: string }>;
+		const l3 = db
+			.query(
+				"SELECT * FROM trace_nodes WHERE team_id = ? AND zoom_level = 3",
+			)
+			.all(createdTeam.id) as Array<{ label: string }>;
+
+		expect(l1.length).toBe(1);
+		expect(l1[0]?.label).toContain("rpc-team");
+		expect(l2.length).toBe(1);
+		expect(l2[0]?.si_id).toBe("SI-01.1");
+		expect(l3.map((n) => n.label)).toContain("ensemble_create");
+		expect(l3.map((n) => n.label)).toContain("ensemble_import_phase_plan");
 	});
 });

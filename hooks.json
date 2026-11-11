@@ -2,7 +2,7 @@
   "agy-ensemble-telemetry": {
     "PostToolUse": [
       {
-        "matcher": "ensemble_.*",
+        "matcher": "run_command|write_file|edit_file|replace_file_content|multi_replace_file_content|ensemble_.*",
         "hooks": [
           {
             "type": "command",
@@ -29,4 +29,3 @@
     ]
   }
 }
-

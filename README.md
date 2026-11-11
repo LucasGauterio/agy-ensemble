@@ -108,7 +108,8 @@ O mesmo script unificado provê acesso direto aos modos de execução e diagnós
 ./run.sh                 # ou ./agy-ensemble.sh run  (Linux / macOS)
 .\run.ps1                # ou .\agy-ensemble.ps1 run (Windows PowerShell)
 
-# Iniciar o painel visual Mission Control Trace Graph:
+# Iniciar o painel visual Mission Control Trace Graph (http://127.0.0.1:4141):
+bunx github:LucasGauterio/agy-ensemble trace --port 4141
 ./agy-ensemble.sh trace  # (ou .\agy-ensemble.ps1 trace)
 
 # Inspecionar o status do time, banco SQLite e link da skill:
@@ -386,7 +387,8 @@ No `agy-ensemble`, **Compliance com a LGPD (Lei nº 13.709/2018), Segurança OWA
 
 ## 12. Live Execution Trace Graph UI (*Mission Control*), FinOps (`$` e Tempo) & Auto-Evolução (`Etapa 10`)
 
-- **Painel Sidecar (`sidecar://agy-ensemble/trace-graph`):**
+- **Painel Sidecar (`sidecar://agy-ensemble/trace-graph/`) ou Servidor Local (`bunx github:LucasGauterio/agy-ensemble trace`):**
+  - Lê ao vivo o banco `<projeto>/.ensemble/team.db`, alimentado automaticamente pelas chamadas MCP (`src/mcp-server.ts`) e pelos hooks de execução (`scripts/hook-handler.mjs`), exibindo em `http://127.0.0.1:4141` (SSE `/api/trace/stream` + JSON `/api/trace/state` / `/api/trace/node`):
   - **Zoom Semântico em 3 Níveis:**
     - *Nível 1 (Macro):* Pipeline de Etapas (`Etapa 0.0` → `Etapa 11`) + HUD FinOps da Fase;
     - *Nível 2 (Meso):* Grafo DAG de Ondas (`Wave 0..N`), cartões de cada `SI-NN.X`, Teammate atribuído e status em tempo real via SSE (`GET /api/trace/stream`);

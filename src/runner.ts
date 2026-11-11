@@ -10,6 +10,7 @@ import {
 	removeMcpServerFromFile,
 	uninstallFromProject,
 } from "./installer";
+import { startTraceGraphServer } from "./trace-graph-server";
 
 export interface RunnerOptions {
 	command:
@@ -517,19 +518,29 @@ export async function main(
 
 		case "trace": {
 			const port = options.port ?? 4141;
+			const targetRoot = path.resolve(options.targetDir ?? projectDir);
+			const dbPath =
+				process.env.ENSEMBLE_DB_PATH && path.isAbsolute(process.env.ENSEMBLE_DB_PATH)
+					? process.env.ENSEMBLE_DB_PATH
+					: path.join(targetRoot, process.env.ENSEMBLE_DB_PATH || ".ensemble/team.db");
+
+			const handle = await startTraceGraphServer({ dbPath, port });
 			console.log(
-				`[agy-ensemble] Launching Mission Control Trace Graph on http://localhost:${port}...`,
+				`[agy-ensemble] Mission Control Trace Graph listening at ${handle.url}`,
 			);
+			console.log(`[agy-ensemble] Watching SQLite DB: ${dbPath}`);
 			console.log("Press Ctrl+C to stop the trace server.");
-			const child = spawn(
-				runtimeInfo.execPath,
-				[
-					"-e",
-					`console.log("Trace graph listening on port ${port}"); setInterval(() => {}, 1000)`,
-				],
-				{ stdio: "inherit" },
-			);
-			child.on("exit", (code) => process.exit(code ?? 0));
+
+			await new Promise<void>((resolve) => {
+				const stop = () => {
+					handle
+						.close()
+						.then(() => resolve())
+						.catch(() => resolve());
+				};
+				process.once("SIGINT", stop);
+				process.once("SIGTERM", stop);
+			});
 			break;
 		}
 

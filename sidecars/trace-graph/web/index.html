@@ -8,6 +8,7 @@
     :root {
       --bg-canvas: #090d16;
       --bg-panel: #111827;
+      --bg-card: #161f33;
       --border-subtle: #1f2937;
       --text-primary: #f9fafb;
       --text-secondary: #9ca3af;
@@ -16,72 +17,503 @@
       --status-blocked: #f59e0b;
       --status-failed: #ef4444;
     }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: system-ui, -apple-system, sans-serif;
       background: var(--bg-canvas);
       color: var(--text-primary);
       display: grid;
-      grid-template-rows: 56px 1fr 48px;
+      grid-template-rows: auto 1fr auto;
       height: 100vh;
+      font-size: 13px;
     }
     header, footer {
       background: var(--bg-panel);
       border-bottom: 1px solid var(--border-subtle);
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      padding: 0 16px;
+      gap: 10px;
+      padding: 10px 16px;
+    }
+    footer {
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: none;
+    }
+    .header-left, .header-right, .zoom-tabs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button.zoom-btn, button.tab-btn, select.team-select {
+      background: #1e293b;
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    button.zoom-btn.active, button.tab-btn.active {
+      border-color: var(--status-running);
+      background: #0c4a6e;
     }
     main {
       display: grid;
-      grid-template-columns: 1fr 360px;
+      grid-template-columns: 1fr 380px;
       overflow: hidden;
     }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; grid-template-rows: 1fr 280px; }
+    }
     .canvas-viewport {
-      padding: 20px;
+      padding: 16px;
       overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
     }
     .inspector-drawer {
       background: var(--bg-panel);
       border-left: 1px solid var(--border-subtle);
-      padding: 16px;
+      padding: 14px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
     .badge {
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 12px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
       background: #1e293b;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-subtle);
     }
+    .badge.running { color: var(--status-running); border-color: var(--status-running); }
+    .badge.completed { color: var(--status-completed); border-color: var(--status-completed); }
+    .badge.blocked, .badge.pending { color: var(--status-blocked); border-color: var(--status-blocked); }
+    .badge.failed, .badge.error { color: var(--status-failed); border-color: var(--status-failed); }
+    .summary-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+    }
+    .stat-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .stat-label { color: var(--text-secondary); font-size: 11px; }
+    .stat-val { font-size: 16px; font-weight: 700; margin-top: 2px; }
+    .nodes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 10px;
+    }
+    .node-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 12px;
+      cursor: pointer;
+      transition: border-color 0.15s ease;
+    }
+    .node-card:hover, .node-card.selected {
+      border-color: var(--status-running);
+    }
+    .node-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .node-title { font-weight: 600; word-break: break-word; }
+    .node-meta { color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+      margin: 4px 0;
+    }
+    .empty-state {
+      background: var(--bg-panel);
+      border: 1px dashed var(--border-subtle);
+      border-radius: 10px;
+      padding: 24px;
+      text-align: center;
+      color: var(--text-secondary);
+    }
+    pre.payload-box {
+      background: #0b1120;
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 10px;
+      overflow: auto;
+      font-size: 11px;
+      line-height: 1.45;
+      color: #e2e8f0;
+      max-height: 360px;
+      margin: 0;
+    }
+    .list-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .list-table th, .list-table td {
+      text-align: left;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .list-table th { color: var(--text-secondary); font-weight: 600; }
   </style>
 </head>
 <body>
   <header>
-    <div>
+    <div class="header-left">
       <strong>agy-ensemble Mission Control</strong>
-      <span class="badge" id="zoom-indicator">Zoom Semântico: Nível 1 (Macro) | Nível 2 (Meso DAG) | Nível 3 (Micro Spans)</span>
+      <span class="badge" id="conn-badge">Conectando...</span>
+      <select id="team-select" class="team-select" aria-label="Team Selector"></select>
+      <div class="zoom-tabs" role="tablist" aria-label="Semantic Zoom">
+        <button class="zoom-btn" data-zoom="1">Nível 1 (Macro)</button>
+        <button class="zoom-btn active" data-zoom="2">Nível 2 (Meso DAG)</button>
+        <button class="zoom-btn" data-zoom="3">Nível 3 (Micro Spans)</button>
+      </div>
     </div>
-    <div id="finops-hud">
-      Est. Cost: <strong>$0.00</strong> | Actual Cost: <strong>$0.00</strong> | Est. Time: <strong>0s</strong> | Actual Time: <strong>0s</strong>
+    <div class="header-right" id="finops-hud">
+      Est. Cost: <strong>$0.0000</strong> | Actual Cost: <strong>$0.0000</strong> | Est. Time: <strong>0s</strong> | Actual Time: <strong>0s</strong>
     </div>
   </header>
+
   <main>
     <section class="canvas-viewport" aria-label="Live Execution DAG Canvas">
-      <div id="dag-nodes">Conectado ao stream SSE <code>GET /api/trace/stream</code>...</div>
+      <div class="summary-strip" id="summary-strip"></div>
+      <div>
+        <div class="section-title" id="nodes-heading">Nós de Execução</div>
+        <div id="dag-nodes" class="nodes-grid"></div>
+      </div>
+      <div id="board-section" style="display:none;">
+        <div class="section-title">Quadro de Tarefas &amp; Teammates</div>
+        <table class="list-table">
+          <thead>
+            <tr><th>SI</th><th>Tarefa</th><th>Status</th><th>Responsável</th><th>Est / Real ($)</th></tr>
+          </thead>
+          <tbody id="tasks-tbody"></tbody>
+        </table>
+      </div>
     </section>
+
     <aside class="inspector-drawer" aria-label="Node Inspector Drawer">
-      <h3>Inspector (4 Abas)</h3>
-      <ul>
-        <li>1. Prompt &amp; Context</li>
-        <li>2. Diff &amp; Files</li>
-        <li>3. Tests &amp; Quality Gate (Sonar + JUnit + LCOV)</li>
-        <li>4. Logs &amp; Telemetry (PII Redacted)</li>
-      </ul>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="margin:0;">Inspector (4 Abas)</h3>
+        <span class="badge" id="inspector-status">Nenhum nó</span>
+      </div>
+      <div class="zoom-tabs" id="inspector-tabs">
+        <button class="tab-btn active" data-tab="0">1. Prompt &amp; Context</button>
+        <button class="tab-btn" data-tab="1">2. Diff &amp; Files</button>
+        <button class="tab-btn" data-tab="2">3. Tests &amp; Gate</button>
+        <button class="tab-btn" data-tab="3">4. Logs &amp; Telemetry</button>
+      </div>
+      <div id="inspector-content" class="node-meta">
+        Clique em qualquer nó do grafo para inspecionar contexto, custos FinOps e payload de execução.
+      </div>
     </aside>
   </main>
+
   <footer>
     <label for="time-scrub">Time-Travel Scrub Bar:</label>
-    <input id="time-scrub" type="range" min="0" max="100" value="100" style="width: 75%;" />
+    <input id="time-scrub" type="range" min="0" max="100" value="100" style="flex:1; min-width:180px;" />
+    <span id="time-scrub-label" class="node-meta">Tempo real (100%)</span>
   </footer>
+
+  <script>
+    const state = {
+      zoom: 2,
+      teamId: "",
+      scrubPct: 100,
+      selectedSpanId: "",
+      selectedTab: 0,
+      snapshot: null,
+      nodeDetails: null,
+      sseActive: false
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    function fmtMs(ms) {
+      if (!ms || ms <= 0) return "0s";
+      if (ms < 1000) return `${ms}ms`;
+      return `${(ms / 1000).toFixed(1)}s`;
+    }
+
+    function escapeHtml(text) {
+      return String(text ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function computeMaxTs(snap) {
+      if (!snap || !snap.timeRange || state.scrubPct >= 100) return "";
+      const { minStarted, maxTime } = snap.timeRange;
+      if (!minStarted || !maxTime || maxTime <= minStarted) return "";
+      return String(Math.round(minStarted + ((maxTime - minStarted) * state.scrubPct) / 100));
+    }
+
+    function buildQueryParams() {
+      const params = new URLSearchParams();
+      params.set("zoom", String(state.zoom));
+      if (state.teamId) params.set("teamId", state.teamId);
+      const maxTs = computeMaxTs(state.snapshot);
+      if (maxTs) params.set("maxTs", maxTs);
+      return params.toString();
+    }
+
+    async function fetchSnapshot() {
+      try {
+        const res = await fetch(`/api/trace/state?${buildQueryParams()}`);
+        if (!res.ok) return;
+        const snap = await res.json();
+        applySnapshot(snap);
+      } catch {
+        $("conn-badge").textContent = "Reconectando...";
+      }
+    }
+
+    async function selectNode(spanId) {
+      state.selectedSpanId = spanId;
+      renderNodes(state.snapshot);
+      try {
+        const res = await fetch(`/api/trace/node?spanId=${encodeURIComponent(spanId)}`);
+        if (!res.ok) return;
+        state.nodeDetails = await res.json();
+        renderInspector();
+      } catch {
+        // ignore transient network error
+      }
+    }
+
+    function applySnapshot(snap) {
+      state.snapshot = snap;
+      if (!state.teamId && snap.team?.id) {
+        state.teamId = snap.team.id;
+      }
+
+      const badge = $("conn-badge");
+      if (!snap.dbExists) {
+        badge.textContent = "Aguardando .ensemble/team.db";
+        badge.className = "badge pending";
+      } else if (state.sseActive) {
+        badge.textContent = "SSE Live";
+        badge.className = "badge completed";
+      } else {
+        badge.textContent = "Live Polling";
+        badge.className = "badge running";
+      }
+
+      const f = snap.finops || {};
+      $("finops-hud").innerHTML =
+        `Est. Cost: <strong>$${Number(f.totalEstCostUsd || 0).toFixed(4)}</strong> | ` +
+        `Actual Cost: <strong>$${Number(f.totalActualCostUsd || 0).toFixed(4)}</strong> | ` +
+        `Est. Time: <strong>${fmtMs(f.totalEstDurationMs)}</strong> | ` +
+        `Actual Time: <strong>${fmtMs(f.totalActualDurationMs)}</strong>`;
+
+      const select = $("team-select");
+      const teams = snap.teams || [];
+      select.innerHTML = teams.length
+        ? teams.map((t) => `<option value="${escapeHtml(t.id)}" ${t.id === (snap.team?.id || "") ? "selected" : ""}>${escapeHtml(t.name)} (${escapeHtml(t.status)})</option>`).join("")
+        : `<option value="">Nenhum time ativo</option>`;
+
+      renderSummary(snap);
+      renderNodes(snap);
+      renderTasks(snap);
+      renderScrubLabel(snap);
+
+      if (state.selectedSpanId) {
+        const stillExists = (snap.nodes || []).some((n) => n.id === state.selectedSpanId);
+        if (!stillExists && snap.nodes?.length) {
+          state.selectedSpanId = snap.nodes[0].id;
+        }
+      } else if (snap.nodes?.length) {
+        selectNode(snap.nodes[0].id);
+      }
+    }
+
+    function renderSummary(snap) {
+      const counts = snap.levelCounts || {};
+      const members = snap.members || [];
+      const tasks = snap.tasks || [];
+      const doneTasks = tasks.filter((t) => t.status === "completed").length;
+      $("summary-strip").innerHTML = `
+        <div class="stat-card"><div class="stat-label">Time Ativo</div><div class="stat-val">${escapeHtml(snap.team?.name || "—")}</div></div>
+        <div class="stat-card"><div class="stat-label">Spans (L1 / L2 / L3)</div><div class="stat-val">${counts.level1 || 0} / ${counts.level2 || 0} / ${counts.level3 || 0}</div></div>
+        <div class="stat-card"><div class="stat-label">Tarefas Concluídas</div><div class="stat-val">${doneTasks} / ${tasks.length}</div></div>
+        <div class="stat-card"><div class="stat-label">Teammates</div><div class="stat-val">${members.length}</div></div>
+      `;
+    }
+
+    function renderNodes(snap) {
+      const container = $("dag-nodes");
+      if (!snap || !snap.nodes || snap.nodes.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state" style="grid-column:1 / -1;">
+            ${snap && snap.dbExists
+              ? `Nenhum span encontrado no Nível ${state.zoom} ainda. Os nós aparecem automaticamente conforme chamadas MCP ou hooks executam.`
+              : `Aguardando início do trabalho (<code>.ensemble/team.db</code> ainda não criado). Inicie via <code>/agy-ensemble</code> no chat.`
+            }
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = snap.nodes.map((node) => {
+        const selected = node.id === state.selectedSpanId ? "selected" : "";
+        const statusClass = escapeHtml(node.status || "running");
+        return `
+          <div class="node-card ${selected}" data-span-id="${escapeHtml(node.id)}">
+            <div class="node-top">
+              <div class="node-title">${escapeHtml(node.label)}</div>
+              <span class="badge ${statusClass}">${statusClass}</span>
+            </div>
+            <div class="node-meta">
+              Tipo: <strong>${escapeHtml(node.nodeKind)}</strong>${node.siId ? ` • SI: <strong>${escapeHtml(node.siId)}</strong>` : ""}<br/>
+              Agente: ${escapeHtml(node.agentName || "lead")}<br/>
+              Est: $${Number(node.estCostUsd || 0).toFixed(4)} (${fmtMs(node.estDurationMs)}) •
+              Real: $${Number(node.actualCostUsd || 0).toFixed(4)} (${fmtMs(node.actualDurationMs)})
+            </div>
+          </div>`;
+      }).join("");
+
+      for (const card of container.querySelectorAll(".node-card")) {
+        card.addEventListener("click", () => selectNode(card.getAttribute("data-span-id")));
+      }
+    }
+
+    function renderTasks(snap) {
+      const tasks = snap?.tasks || [];
+      const sec = $("board-section");
+      if (!tasks.length) {
+        sec.style.display = "none";
+        return;
+      }
+      sec.style.display = "block";
+      $("tasks-tbody").innerHTML = tasks.map((t) => `
+        <tr>
+          <td>${escapeHtml(t.siId || "—")}</td>
+          <td>${escapeHtml(t.content)}</td>
+          <td><span class="badge ${escapeHtml(t.status)}">${escapeHtml(t.status)}</span></td>
+          <td>${escapeHtml(t.assignee || "—")}</td>
+          <td>$${Number(t.estCostUsd || 0).toFixed(3)} / $${Number(t.actualCostUsd || 0).toFixed(3)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderInspector() {
+      const d = state.nodeDetails;
+      if (!d) return;
+      const badge = $("inspector-status");
+      badge.textContent = d.status;
+      badge.className = `badge ${escapeHtml(d.status)}`;
+
+      const f = d.finops || {};
+      const payload = d.payload || {};
+      const box = $("inspector-content");
+
+      if (state.selectedTab === 0) {
+        box.innerHTML = `
+          <div><strong>${escapeHtml(d.label)}</strong> (${escapeHtml(d.nodeKind)})</div>
+          <div>SI: ${escapeHtml(d.siId || "—")} • Agente: ${escapeHtml(d.agentName || "lead")}</div>
+          <pre class="payload-box">${escapeHtml(JSON.stringify(payload, null, 2))}</pre>`;
+      } else if (state.selectedTab === 1) {
+        const files = payload?.args?.filesTouched || payload?.args?.Path || payload?.args?.TargetFile || "Nenhum arquivo explicitado no payload deste span.";
+        box.innerHTML = `<pre class="payload-box">${escapeHtml(typeof files === "string" ? files : JSON.stringify(files, null, 2))}</pre>`;
+      } else if (state.selectedTab === 2) {
+        box.innerHTML = `
+          <div>Status: <strong>${escapeHtml(d.status)}</strong></div>
+          <div>Est. Cost: $${Number(f.estCostUsd || 0).toFixed(4)} • Actual Cost: $${Number(f.actualCostUsd || 0).toFixed(4)}</div>
+          <div>Est. Duration: ${fmtMs(f.estDurationMs)} • Actual Duration: ${fmtMs(f.actualDurationMs)}</div>
+          <div>Tokens (in/out): ${f.inputTokens || 0} / ${f.outputTokens || 0}</div>`;
+      } else {
+        box.innerHTML = `
+          <div>Início: ${new Date(d.timeStarted).toLocaleTimeString()}</div>
+          <div>Fim: ${d.timeCompleted ? new Date(d.timeCompleted).toLocaleTimeString() : "Em execução"}</div>
+          <pre class="payload-box">${escapeHtml(JSON.stringify(payload, null, 2))}</pre>`;
+      }
+    }
+
+    function renderScrubLabel(snap) {
+      if (state.scrubPct >= 100 || !snap?.timeRange?.maxTime) {
+        $("time-scrub-label").textContent = "Tempo real (100%)";
+        return;
+      }
+      const ts = Number(computeMaxTs(snap));
+      $("time-scrub-label").textContent = `${state.scrubPct}% (${new Date(ts).toLocaleTimeString()})`;
+    }
+
+    for (const btn of document.querySelectorAll(".zoom-btn")) {
+      btn.addEventListener("click", () => {
+        for (const b of document.querySelectorAll(".zoom-btn")) b.classList.remove("active");
+        btn.classList.add("active");
+        state.zoom = Number.parseInt(btn.getAttribute("data-zoom"), 10) || 2;
+        fetchSnapshot();
+      });
+    }
+
+    for (const btn of document.querySelectorAll(".tab-btn")) {
+      btn.addEventListener("click", () => {
+        for (const b of document.querySelectorAll(".tab-btn")) b.classList.remove("active");
+        btn.classList.add("active");
+        state.selectedTab = Number.parseInt(btn.getAttribute("data-tab"), 10) || 0;
+        renderInspector();
+      });
+    }
+
+    $("team-select").addEventListener("change", (e) => {
+      state.teamId = e.target.value;
+      state.selectedSpanId = "";
+      fetchSnapshot();
+    });
+
+    $("time-scrub").addEventListener("input", (e) => {
+      state.scrubPct = Number.parseInt(e.target.value, 10);
+      fetchSnapshot();
+    });
+
+    function connectStream() {
+      if (typeof EventSource === "undefined") return;
+      try {
+        const es = new EventSource(`/api/trace/stream?${buildQueryParams()}`);
+        es.addEventListener("TRACE_SNAPSHOT", (ev) => {
+          state.sseActive = true;
+          try {
+            const snap = JSON.parse(ev.data);
+            if (snap && snap.zoomLevel === state.zoom && state.scrubPct >= 100) {
+              applySnapshot(snap);
+            }
+          } catch {
+            // ignore parse error
+          }
+        });
+        es.onerror = () => {
+          state.sseActive = false;
+          es.close();
+        };
+      } catch {
+        state.sseActive = false;
+      }
+    }
+
+    fetchSnapshot();
+    connectStream();
+    setInterval(fetchSnapshot, 1500);
+  </script>
 </body>
 </html>

@@ -2,6 +2,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import {
 	PACKAGE_ROOT_DIR,
 	ensureEnsembleSource,
@@ -157,8 +158,48 @@ async function main() {
 			break;
 		}
 
+		case "trace": {
+			const targetDir = path.resolve(parsed.targetDir ?? cwd);
+			const port = parsed.port ?? 4141;
+			const dbPath =
+				process.env.ENSEMBLE_DB_PATH && path.isAbsolute(process.env.ENSEMBLE_DB_PATH)
+					? process.env.ENSEMBLE_DB_PATH
+					: path.join(targetDir, process.env.ENSEMBLE_DB_PATH || ".ensemble/team.db");
+
+			const distEntry = path.join(PACKAGE_ROOT_DIR, "dist", "index.js");
+			const homeDistEntry = path.join(
+				getDefaultEnsembleHome(parsed.ensembleHome),
+				"dist",
+				"index.js",
+			);
+			const modulePath = fs.existsSync(distEntry)
+				? distEntry
+				: fs.existsSync(homeDistEntry)
+					? homeDistEntry
+					: path.join(PACKAGE_ROOT_DIR, "src", "trace-graph-server.ts");
+
+			const traceMod = await import(pathToFileURL(modulePath).href);
+			const handle = await traceMod.startTraceGraphServer({ dbPath, port });
+			console.log(
+				`[agy-ensemble] Mission Control Trace Graph listening at ${handle.url}`,
+			);
+			console.log(`[agy-ensemble] Watching SQLite DB: ${dbPath}`);
+			console.log("Press Ctrl+C to stop the trace server.");
+
+			await new Promise((resolve) => {
+				const stop = () => {
+					handle
+						.close()
+						.then(() => resolve())
+						.catch(() => resolve());
+				};
+				process.once("SIGINT", stop);
+				process.once("SIGTERM", stop);
+			});
+			break;
+		}
+
 		case "setup":
-		case "trace":
 		case "verify": {
 			const repoDir = isInsideEnsembleRepo(cwd)
 				? cwd

@@ -2,7 +2,7 @@
 
 Este documento governa a implementação e verificação empírica da skill/plugin **`agy-ensemble`**.
 
-## 1. Itens de Implementação e Validações Automatizadas (`50/50 Testes Passando — 491 Assertions`)
+## 1. Itens de Implementação e Validações Automatizadas (`51/51 Testes Passando — 523 Assertions`)
 
 | ID | Item de Implementação | Módulo / Artefato Alvo | Validação Executável (`VAL-*`) | Status |
 | :--- | :--- | :--- | :--- | :--- |
@@ -10,7 +10,7 @@ Este documento governa a implementação e verificação empírica da skill/plug
 | **`IMP-01`** | Servidor MCP `agy-ensemble` + Banco SQLite WAL Expandido (15 tools + stdio JSON-RPC + DAG import) | `src/db.ts`, `src/schema.ts`, `src/mcp-server.ts` | **`VAL-01`**: `test/mcp-server.test.ts` (5 pass) | `[x] PASS` |
 | **`IMP-02`** | Provisionador Multi-Tenant & Vault Hook (`s_si_nn_x`, Redis ACL, RabbitMQ, Vault) | `src/tenant-provisioner.ts`, `templates/scripts/test-env/` | **`VAL-02`**: `test/tenant-provisioner.test.ts` (1 pass) | `[x] PASS` |
 | **`IMP-03`** | Hooks `PreToolUse`/`PostToolUse` + Trace Collector + Motor FinOps (`$` e `ms` Est. vs Real) | `hooks.json`, `scripts/hook-handler.mjs`, `src/trace-collector.ts`, `src/finops.ts` | **`VAL-03`**: `test/trace-finops.test.ts` (2 pass) | `[x] PASS` |
-| **`IMP-04`** | Live Execution Trace Graph UI (Sidecar Aux Pane + SSE Stream + 3 Níveis de Zoom) | `sidecars/trace-graph/`, `src/trace-graph-server.ts` | **`VAL-04`**: `test/trace-graph-ui.test.ts` (1 pass) | `[x] PASS` |
+| **`IMP-04`** | Live Execution Trace Graph UI (Sidecar Aux Pane + SSE Stream + 3 Níveis de Zoom) | `sidecars/trace-graph/`, `src/trace-graph-server.ts` | **`VAL-04`**: `test/trace-graph-ui.test.ts` (2 pass) | `[x] PASS` |
 | **`IMP-05`** | Etapa 1.0: Motor de Entrevista Iterativa + Síntese da `Requisição Consolidada Oficial` | `src/interview-engine.ts`, `skills/init-project/SKILL.md` | **`VAL-05`**: `test/interview-engine.test.ts` (1 pass) | `[x] PASS` |
 | **`IMP-06`** | `Stack Synergy Engine` + Volumetria 3 Tiers (`Seed/Growth/Scale`) + Gate `FINOPS-VIABILITY-N` | `src/synergy-finops-validator.ts`, `skills/research/SKILL.md` | **`VAL-06`**: `test/synergy-finops.test.ts` (2 pass) | `[x] PASS` |
 | **`IMP-07`** | Design System Vivo Code-First (Sem Figma) + Síntese da Onda Zero (`SI-NN.0.k`) | `src/design-system-engine.ts`, `skills/screen-inventory/SKILL.md` | **`VAL-07`**: `test/design-system.test.ts` (1 pass) | `[x] PASS` |
