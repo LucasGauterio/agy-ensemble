@@ -427,6 +427,110 @@ function copyPluginPayload(sourceDir, destDir) {
 }
 
 /**
+ * Read current git HEAD SHA if sourceDir is a git repo.
+ *
+ * @param {string} sourceDir
+ * @returns {string}
+ */
+function readRepoHeadSha(sourceDir) {
+	if (!fs.existsSync(path.join(sourceDir, ".git"))) return "local";
+	try {
+		return execFileSync("git", ["-C", sourceDir, "rev-parse", "HEAD"], {
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
+	} catch {
+		return "local";
+	}
+}
+
+/**
+ * Sync the agy-ensemble plugin payload as a real directory (not a symlink/junction)
+ * so Antigravity IDE / Language Server always discovers skills, rules, hooks, and MCP.
+ *
+ * @param {string} sourceDir
+ * @param {string} destDir
+ * @param {{
+ *   runtime?: string;
+ *   force?: boolean;
+ *   dryRun?: boolean;
+ * }} [options]
+ * @returns {{ path: string; action: "copied" | "updated" | "exists" }}
+ */
+export function syncProjectPluginDirectory(sourceDir, destDir, options = {}) {
+	const resolvedSource = path.resolve(sourceDir);
+	const stampPath = path.join(destDir, ".agy-ensemble-install.json");
+	const headSha = readRepoHeadSha(resolvedSource);
+
+	let existingStat = null;
+	try {
+		existingStat = fs.lstatSync(destDir);
+	} catch {
+		existingStat = null;
+	}
+
+	const isSymlink = Boolean(existingStat?.isSymbolicLink());
+	let isUpToDate = false;
+
+	if (existingStat && !isSymlink && !options.force && fs.existsSync(stampPath)) {
+		try {
+			const stamp = JSON.parse(fs.readFileSync(stampPath, "utf8"));
+			const hasEntrySkill = fs.existsSync(
+				path.join(destDir, "skills", "agy-ensemble", "SKILL.md"),
+			);
+			if (
+				stamp?.sourceDir === resolvedSource &&
+				stamp?.headSha === headSha &&
+				hasEntrySkill
+			) {
+				isUpToDate = true;
+			}
+		} catch {
+			isUpToDate = false;
+		}
+	}
+
+	if (isUpToDate) {
+		return { path: destDir, action: "exists" };
+	}
+
+	const action = existingStat ? "updated" : "copied";
+	if (options.dryRun) {
+		return { path: destDir, action };
+	}
+
+	if (existingStat) {
+		fs.rmSync(destDir, { recursive: true, force: true });
+	}
+	copyPluginPayload(resolvedSource, destDir);
+
+	if (options.runtime) {
+		const mcpServerScript = path.join(resolvedSource, "dist", "mcp-server.js");
+		mergeMcpConfigFile(
+			path.join(destDir, "mcp_config.json"),
+			"agy-ensemble",
+			{
+				command: options.runtime,
+				args: [mcpServerScript],
+				env: {
+					ENSEMBLE_DB_PATH: ".ensemble/team.db",
+					AGY_ENSEMBLE_DELEGATE_DEFAULT: "true",
+				},
+			},
+			{ dryRun: false },
+		);
+	}
+
+	fs.writeFileSync(
+		stampPath,
+		`${JSON.stringify({ sourceDir: resolvedSource, headSha }, null, 2)}\n`,
+		"utf8",
+	);
+
+	return { path: destDir, action };
+}
+
+/**
  * Create or update a symlink/junction (with copy fallback) from linkPath -> sourceDir.
  *
  * @param {string} sourceDir
@@ -737,17 +841,18 @@ export function installIntoProject(options = {}) {
 		},
 	};
 
-	// 1. Link plugin into <targetDir>/.agents/plugins/agy-ensemble
+	// 1. Sync real plugin directory into <targetDir>/.agents/plugins/agy-ensemble
+	// (Antigravity's plugin/skill scanner skips Windows junctions/symlinks)
 	const projectPluginLinkPath = path.join(
 		targetDir,
 		".agents",
 		"plugins",
 		"agy-ensemble",
 	);
-	const projectPluginResult = createOrUpdatePluginLink(
+	const projectPluginResult = syncProjectPluginDirectory(
 		resolvedSourceDir,
 		projectPluginLinkPath,
-		{ force: options.force, dryRun: options.dryRun },
+		{ runtime, force: options.force, dryRun: options.dryRun },
 	);
 
 	// 2. Ensure starter AGENTS.md if absent

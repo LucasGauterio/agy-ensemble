@@ -84,7 +84,12 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 			});
 
 			expect(res.projectMode).toBe("greenfield");
-			expect(["linked", "copied"]).toContain(res.projectPlugin.action);
+			expect(res.projectPlugin.action).toBe("copied");
+			const pluginStat = fs.lstatSync(
+				path.join(targetDir, ".agents", "plugins", "agy-ensemble"),
+			);
+			expect(pluginStat.isSymbolicLink()).toBe(false);
+			expect(pluginStat.isDirectory()).toBe(true);
 			expect(
 				fs.existsSync(
 					path.join(
@@ -197,6 +202,32 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 			});
 			expect(second.projectPlugin.action).toBe("exists");
 			expect(second.gitignore.addedEntries).toHaveLength(0);
+
+			// Legacy symlink/junction at .agents/plugins/agy-ensemble must be replaced with a real directory
+			const pluginDir = path.join(
+				targetDir,
+				".agents",
+				"plugins",
+				"agy-ensemble",
+			);
+			fs.rmSync(pluginDir, { recursive: true, force: true });
+			fs.symlinkSync(
+				PACKAGE_ROOT_DIR,
+				pluginDir,
+				process.platform === "win32" ? "junction" : "dir",
+			);
+			expect(fs.lstatSync(pluginDir).isSymbolicLink()).toBe(true);
+
+			const upgraded = installIntoProject({
+				targetDir,
+				sourceDir: PACKAGE_ROOT_DIR,
+				antigravityDir,
+				noGlobal: true,
+				log: () => {},
+			});
+			expect(upgraded.projectPlugin.action).toBe("updated");
+			expect(fs.lstatSync(pluginDir).isSymbolicLink()).toBe(false);
+			expect(fs.lstatSync(pluginDir).isDirectory()).toBe(true);
 
 			const gitignoreLines = fs
 				.readFileSync(path.join(targetDir, ".gitignore"), "utf8")

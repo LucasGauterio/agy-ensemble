@@ -2,7 +2,7 @@
 
 Este documento governa a implementação e verificação empírica da skill/plugin **`agy-ensemble`**.
 
-## 1. Itens de Implementação e Validações Automatizadas (`50/50 Testes Passando — 485 Assertions`)
+## 1. Itens de Implementação e Validações Automatizadas (`50/50 Testes Passando — 491 Assertions`)
 
 | ID | Item de Implementação | Módulo / Artefato Alvo | Validação Executável (`VAL-*`) | Status |
 | :--- | :--- | :--- | :--- | :--- |

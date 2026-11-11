@@ -134,6 +134,11 @@ export function removeMcpServerFromFile(
 	serverName: string,
 	options?: { dryRun?: boolean; removeEmptyFile?: boolean },
 ): boolean;
+export function syncProjectPluginDirectory(
+	sourceDir: string,
+	destDir: string,
+	options?: { runtime?: string; force?: boolean; dryRun?: boolean },
+): { path: string; action: "copied" | "updated" | "exists" };
 export function createOrUpdatePluginLink(
 	sourceDir: string,
 	linkPath: string,

@@ -68,7 +68,7 @@ npx github:LucasGauterio/agy-ensemble
 
 O instalador executa automaticamente:
 1. Clona/atualiza a versão mais recente do repositório `LucasGauterio/agy-ensemble` em `~/.agy-ensemble`, instala dependências e compila `dist/`.
-2. Vincula o plugin completo em `<projeto>/.agents/plugins/agy-ensemble` (habilitando as 30 skills, agentes `worker-teammate`/`worker-pentest`, regras LGPD/README, `hooks.json`, sidecar `trace-graph` e `mcp_config.json`).
+2. Instala o plugin como diretório real em `<projeto>/.agents/plugins/agy-ensemble` (habilitando as 30 skills incluindo `/agy-ensemble`, agentes `worker-teammate`/`worker-pentest`, regras LGPD/README, `hooks.json`, sidecar `trace-graph` e `mcp_config.json` sem depender de symlinks/junctions).
 3. Cria `AGENTS.md` inicial caso o projeto ainda não possua um (sem nunca sobrescrever regras já existentes).
 4. Atualiza `.gitignore` com `.ensemble/` e `.agents/plugins/agy-ensemble`.
 5. Registra o servidor MCP e a skill no `~/.gemini/antigravity/` (ou também em `./mcp.json` com `--local-mcp`).

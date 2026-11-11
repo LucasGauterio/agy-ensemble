@@ -32,6 +32,7 @@ import {
 	printInstallSummary,
 	removeMcpServerFromFile,
 	resolveMcpRuntime,
+	syncProjectPluginDirectory,
 	uninstallFromProject,
 } from "../scripts/installer-core.mjs";
 
@@ -56,6 +57,7 @@ export {
 	printInstallSummary,
 	removeMcpServerFromFile,
 	resolveMcpRuntime,
+	syncProjectPluginDirectory,
 	uninstallFromProject,
 };
 
