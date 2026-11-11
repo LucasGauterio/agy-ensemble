@@ -1,8 +1,18 @@
 {
-  "id": "trace-graph",
-  "title": "agy-ensemble — Live Execution Trace Graph (Mission Control)",
-  "uri": "sidecar://agy-ensemble/trace-graph",
-  "location": "aux-pane",
-  "entrypoint": "./web/index.html",
-  "sseEndpoint": "/api/trace/stream"
+  "command": "node",
+  "args": ["main.mjs"],
+  "restart_policy": "on-failure",
+  "display_name": "agy-ensemble Trace Graph",
+  "description": "Live Execution Trace Graph (Mission Control) with 3-level semantic zoom, SSE updates, and FinOps telemetry.",
+  "has_web_ui": true,
+  "ui_config": {
+    "display_name": "Trace Graph",
+    "views": [
+      {
+        "path": "/",
+        "entrypoint": "SIDECAR_UI_ENTRYPOINT_AUX_PANE",
+        "title": "Mission Control"
+      }
+    ]
+  }
 }

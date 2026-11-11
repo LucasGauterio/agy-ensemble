@@ -1,13 +1,19 @@
 {
-  "id": "agy-ensemble",
-  "name": "Antigravity Ensemble — Autonomous Multi-Agent Engineering Workflow",
+  "name": "agy-ensemble",
+  "displayName": "Antigravity Ensemble — Autonomous Multi-Agent Engineering Workflow",
   "version": "1.0.0",
   "description": "Unifies documentation-first autonomous phased engineering with parallel multi-agent team orchestration, multi-tenant container isolation, LGPD compliance by default, SAST/DAST/PenTests, FinOps tracking, and Live Execution Trace Graph UI.",
-  "entry": {
-    "mcp": "./mcp.json",
-    "hooks": "./hooks/hooks.json",
-    "skills": ["./SKILL.md", "./skills"],
-    "agents": ["./agents"],
-    "sidecars": ["./sidecars/trace-graph/sidecar.json"]
-  }
+  "logo": "assets/logo.svg",
+  "author": {
+    "name": "LucasGauterio"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LucasGauterio/agy-ensemble.git"
+  },
+  "suggestedPrompts": [
+    "Inicializar agy-ensemble neste projeto e auditar a sincronia da codebase (Etapa 0.0)",
+    "Planejar e implementar uma nova funcionalidade de ponta a ponta com /agy-ensemble",
+    "Inspecionar o status das tarefas e abrir o painel Mission Control Trace Graph"
+  ]
 }

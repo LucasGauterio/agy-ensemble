@@ -5,6 +5,7 @@ export * from "./db";
 export * from "./design-system-engine";
 export * from "./executive-report";
 export * from "./finops";
+export * from "./installer";
 export * from "./interview-engine";
 export * from "./learning-loop";
 export * from "./mcp-server";

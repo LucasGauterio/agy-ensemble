@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "agy-ensemble": {
+      "command": "bun",
+      "args": [
+        "-e",
+        "import path from 'node:path'; import { pathToFileURL } from 'node:url'; const root = process.env.PLUGIN_ROOT || process.cwd(); const mod = await import(pathToFileURL(path.join(root, 'dist', 'mcp-server.js')).href); mod.startMcpStdioServer();"
+      ],
+      "env": {
+        "ENSEMBLE_DB_PATH": ".ensemble/team.db",
+        "AGY_ENSEMBLE_DELEGATE_DEFAULT": "true"
+      }
+    }
+  }
+}

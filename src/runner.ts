@@ -3,9 +3,17 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createDb } from "./db";
+import {
+	installIntoProject,
+	mergeMcpConfigFile,
+	printInstallSummary,
+	removeMcpServerFromFile,
+	uninstallFromProject,
+} from "./installer";
 
 export interface RunnerOptions {
 	command:
+		| "install"
 		| "setup"
 		| "run"
 		| "trace"
@@ -13,10 +21,19 @@ export interface RunnerOptions {
 		| "status"
 		| "uninstall"
 		| "help";
+	targetDir?: string;
+	sourceDir?: string;
+	ensembleHome?: string;
 	antigravityDir?: string;
 	port?: number;
 	dryRun?: boolean;
 	runtime?: "bun" | "node";
+	withTemplates?: boolean;
+	localMcp?: boolean;
+	noGlobal?: boolean;
+	globalPlugin?: boolean;
+	noUpdate?: boolean;
+	force?: boolean;
 }
 
 export interface RuntimeInfo {
@@ -59,8 +76,12 @@ export function parseArgs(argv: string[]): RunnerOptions {
 
 	for (let i = 0; i < argv.length; i++) {
 		const arg = argv[i];
+		if (!arg) continue;
 
-		if (arg === "setup" || arg === "--setup") {
+		if (arg === "install" || arg === "--install") {
+			options.command = "install";
+			explicitCommand = true;
+		} else if (arg === "setup" || arg === "--setup") {
 			options.command = "setup";
 			explicitCommand = true;
 		} else if (arg === "run" || arg === "--run") {
@@ -81,6 +102,15 @@ export function parseArgs(argv: string[]): RunnerOptions {
 		} else if (arg === "help" || arg === "--help" || arg === "-h") {
 			options.command = "help";
 			explicitCommand = true;
+		} else if ((arg === "--target" || arg === "-t") && i + 1 < argv.length) {
+			options.targetDir = argv[++i];
+		} else if (arg === "--source" && i + 1 < argv.length) {
+			options.sourceDir = argv[++i];
+		} else if (
+			(arg === "--install-dir" || arg === "--home") &&
+			i + 1 < argv.length
+		) {
+			options.ensembleHome = argv[++i];
 		} else if (arg === "--antigravity-dir" && i + 1 < argv.length) {
 			options.antigravityDir = argv[++i];
 		} else if ((arg === "--port" || arg === "-p") && i + 1 < argv.length) {
@@ -91,11 +121,25 @@ export function parseArgs(argv: string[]): RunnerOptions {
 			}
 		} else if (arg === "--dry-run") {
 			options.dryRun = true;
+		} else if (arg === "--with-templates") {
+			options.withTemplates = true;
+		} else if (arg === "--local-mcp") {
+			options.localMcp = true;
+		} else if (arg === "--no-global") {
+			options.noGlobal = true;
+		} else if (arg === "--global") {
+			options.globalPlugin = true;
+		} else if (arg === "--no-update") {
+			options.noUpdate = true;
+		} else if (arg === "--force" || arg === "-f") {
+			options.force = true;
 		} else if (arg === "--runtime" && i + 1 < argv.length) {
 			const r = argv[++i];
 			if (r === "bun" || r === "node") {
 				options.runtime = r;
 			}
+		} else if (!arg.startsWith("-") && !options.targetDir) {
+			options.targetDir = arg;
 		}
 	}
 
@@ -164,52 +208,18 @@ export function registerMcpServer(
 		"mcp-server.js",
 	);
 
-	let config: {
-		mcpServers?: Record<
-			string,
-			{
-				command: string;
-				args: string[];
-				env?: Record<string, string>;
-			}
-		>;
-	} = {};
-
-	if (fs.existsSync(mcpJsonPath)) {
-		try {
-			const raw = fs.readFileSync(mcpJsonPath, "utf-8");
-			config = JSON.parse(raw);
-		} catch {
-			config = {};
-		}
-	}
-
-	if (!config.mcpServers || typeof config.mcpServers !== "object") {
-		config.mcpServers = {};
-	}
-
-	const isUpdated = Boolean(config.mcpServers["agy-ensemble"]);
-
-	config.mcpServers["agy-ensemble"] = {
-		command: runtimeCommand,
-		args: [mcpServerScript],
-		env: {
-			ENSEMBLE_DB_PATH: ".ensemble/team.db",
-		},
-	};
-
-	if (!options.dryRun) {
-		fs.mkdirSync(antigravityHome, { recursive: true });
-		fs.writeFileSync(mcpJsonPath, `${JSON.stringify(config, null, 2)}\n`, {
-			encoding: "utf-8",
-		});
-	}
-
-	return {
+	return mergeMcpConfigFile(
 		mcpJsonPath,
-		registered: true,
-		updated: isUpdated,
-	};
+		"agy-ensemble",
+		{
+			command: runtimeCommand,
+			args: [mcpServerScript],
+			env: {
+				ENSEMBLE_DB_PATH: ".ensemble/team.db",
+			},
+		},
+		{ dryRun: options.dryRun },
+	);
 }
 
 /**
@@ -262,27 +272,9 @@ export function unregisterMcpServer(
 	options: { dryRun?: boolean } = {},
 ): { removed: boolean } {
 	const mcpJsonPath = path.join(antigravityHome, "mcp.json");
-	let removed = false;
-
-	if (fs.existsSync(mcpJsonPath)) {
-		try {
-			const raw = fs.readFileSync(mcpJsonPath, "utf-8");
-			const config = JSON.parse(raw);
-			if (config.mcpServers?.["agy-ensemble"]) {
-				delete config.mcpServers["agy-ensemble"];
-				if (!options.dryRun) {
-					fs.writeFileSync(
-						mcpJsonPath,
-						`${JSON.stringify(config, null, 2)}\n`,
-						"utf-8",
-					);
-				}
-				removed = true;
-			}
-		} catch {
-			// ignore parse error on unregister
-		}
-	}
+	let removed = removeMcpServerFromFile(mcpJsonPath, "agy-ensemble", {
+		dryRun: options.dryRun,
+	});
 
 	const skillLinkPath = path.join(antigravityHome, "skills", "agy-ensemble");
 	if (fs.existsSync(skillLinkPath)) {
@@ -357,22 +349,31 @@ agy-ensemble CLI — Unified Multi-Agent Engineering Workflow Runner
 ==============================================================================
 
 Usage:
+  bunx github:LucasGauterio/agy-ensemble [target-dir] [options]
   ./agy-ensemble.sh <command> [options]    (Linux / macOS)
   .\\agy-ensemble.ps1 <command> [options]   (Windows PowerShell)
 
 Commands:
+  install [dir]  Clone/update ~/.agy-ensemble from GitHub and install into [dir]
   setup          Install dependencies, build bundles, link skill & register MCP
   run            Start the agy-ensemble MCP Server (stdio/JSON-RPC)
   trace          Launch the visual Mission Control Trace Graph server
-  verify         Execute full verification test suite (36+ tests)
+  verify         Execute full verification test suite
   status         Inspect active team state and Antigravity configuration
-  uninstall      Remove skill link and unregister from mcp.json
+  uninstall      Remove skill link and unregister from mcp.json (or project with --target)
   help           Show this help message
 
 Options:
+  --target, -t <dir>         Target project directory for install/uninstall
+  --with-templates           Copy .gitleaks.toml, sonar-project.properties, etc.
+  --local-mcp                Write/merge ./mcp.json in the target project
+  --no-global                Skip updating ~/.gemini/antigravity/ during install
+  --no-update                Skip git pull when ~/.agy-ensemble already exists
+  --source <dir>             Use local agy-ensemble clone instead of GitHub
   --port <number>            Port for trace server (default: 4141)
   --antigravity-dir <path>   Override default ~/.gemini/antigravity path
   --runtime <bun|node>       Force specific runtime
+  --force, -f                Overwrite existing links or templates
   --dry-run                  Simulate actions without writing files
 `);
 }
@@ -397,6 +398,25 @@ export async function main(
 			break;
 		}
 
+		case "install": {
+			const res = installIntoProject({
+				targetDir: options.targetDir ?? projectDir,
+				ensembleHome: options.ensembleHome,
+				sourceDir: options.sourceDir,
+				antigravityDir: options.antigravityDir,
+				runtime: options.runtime,
+				withTemplates: options.withTemplates,
+				localMcp: options.localMcp,
+				noGlobal: options.noGlobal,
+				globalPlugin: options.globalPlugin,
+				noUpdate: options.noUpdate,
+				force: options.force,
+				dryRun: options.dryRun,
+			});
+			printInstallSummary(res, options.dryRun);
+			break;
+		}
+
 		case "setup": {
 			console.log(
 				`\n[agy-ensemble] Starting setup using ${runtimeInfo.runtime.toUpperCase()}...`,
@@ -406,7 +426,7 @@ export async function main(
 			console.log("[1/5] Checking dependencies...");
 			const installCmd = runtimeInfo.isBun
 				? `${executablePath} install`
-				: "npm install";
+				: "npm install --include=dev";
 			if (options.dryRun) {
 				console.log(`      [dry-run] Would execute: ${installCmd}`);
 			} else {
@@ -417,7 +437,7 @@ export async function main(
 			console.log("[2/5] Building TypeScript & MCP Server bundles...");
 			const buildCmd = runtimeInfo.isBun
 				? `${executablePath} run build`
-				: "npx tsc && node scripts/build.mjs";
+				: "npm run build";
 			if (options.dryRun) {
 				console.log(`      [dry-run] Would execute: ${buildCmd}`);
 			} else {
@@ -556,6 +576,20 @@ export async function main(
 		}
 
 		case "uninstall": {
+			if (options.targetDir) {
+				const projRes = uninstallFromProject({
+					targetDir: options.targetDir,
+					antigravityDir: options.antigravityDir,
+					global: options.globalPlugin,
+					dryRun: options.dryRun,
+				});
+				console.log(
+					projRes.uninstalled
+						? `[agy-ensemble] Removed project integration from ${projRes.targetDir}: ${projRes.removed.join(", ")}`
+						: `[agy-ensemble] Nothing to uninstall in ${projRes.targetDir}.`,
+				);
+				break;
+			}
 			console.log("[agy-ensemble] Unregistering from Antigravity...");
 			const res = unregisterMcpServer(antigravityHome, {
 				dryRun: options.dryRun,

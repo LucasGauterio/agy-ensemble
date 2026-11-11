@@ -1,15 +1,15 @@
-# Matriz Oficial de Implementação (`IMP-00..17`), Validação (`VAL-00..17`) e Bateria de Projetos-Piloto (`E2E-P0..P4`)
+# Matriz Oficial de Implementação (`IMP-00..19`), Validação (`VAL-00..19`) e Bateria de Projetos-Piloto (`E2E-P0..P4`)
 
 Este documento governa a implementação e verificação empírica da skill/plugin **`agy-ensemble`**.
 
-## 1. Itens de Implementação e Validações Automatizadas (`34/34 Testes Passando — 355 Assertions`)
+## 1. Itens de Implementação e Validações Automatizadas (`50/50 Testes Passando — 485 Assertions`)
 
 | ID | Item de Implementação | Módulo / Artefato Alvo | Validação Executável (`VAL-*`) | Status |
 | :--- | :--- | :--- | :--- | :--- |
 | **`IMP-00`** | Gate Bloqueante Brownfield & Sincronia Codebase ↔ Documentação (`Etapa 0.0`) | `src/brownfield-gate.ts`, `SKILL.md`, `skills/init-project/SKILL.md` | **`VAL-00`**: `test/brownfield-gate.test.ts` (3 pass) | `[x] PASS` |
-| **`IMP-01`** | Servidor MCP `agy-ensemble` + Banco SQLite WAL Expandido (14+ tools + DAG import) | `src/db.ts`, `src/schema.ts`, `src/mcp-server.ts` | **`VAL-01`**: `test/mcp-server.test.ts` (4 pass) | `[x] PASS` |
+| **`IMP-01`** | Servidor MCP `agy-ensemble` + Banco SQLite WAL Expandido (15 tools + stdio JSON-RPC + DAG import) | `src/db.ts`, `src/schema.ts`, `src/mcp-server.ts` | **`VAL-01`**: `test/mcp-server.test.ts` (5 pass) | `[x] PASS` |
 | **`IMP-02`** | Provisionador Multi-Tenant & Vault Hook (`s_si_nn_x`, Redis ACL, RabbitMQ, Vault) | `src/tenant-provisioner.ts`, `templates/scripts/test-env/` | **`VAL-02`**: `test/tenant-provisioner.test.ts` (1 pass) | `[x] PASS` |
-| **`IMP-03`** | Hooks `PreToolUse`/`PostToolUse` + Trace Collector + Motor FinOps (`$` e `ms` Est. vs Real) | `hooks/hooks.json`, `src/trace-collector.ts`, `src/finops.ts` | **`VAL-03`**: `test/trace-finops.test.ts` (2 pass) | `[x] PASS` |
+| **`IMP-03`** | Hooks `PreToolUse`/`PostToolUse` + Trace Collector + Motor FinOps (`$` e `ms` Est. vs Real) | `hooks.json`, `scripts/hook-handler.mjs`, `src/trace-collector.ts`, `src/finops.ts` | **`VAL-03`**: `test/trace-finops.test.ts` (2 pass) | `[x] PASS` |
 | **`IMP-04`** | Live Execution Trace Graph UI (Sidecar Aux Pane + SSE Stream + 3 Níveis de Zoom) | `sidecars/trace-graph/`, `src/trace-graph-server.ts` | **`VAL-04`**: `test/trace-graph-ui.test.ts` (1 pass) | `[x] PASS` |
 | **`IMP-05`** | Etapa 1.0: Motor de Entrevista Iterativa + Síntese da `Requisição Consolidada Oficial` | `src/interview-engine.ts`, `skills/init-project/SKILL.md` | **`VAL-05`**: `test/interview-engine.test.ts` (1 pass) | `[x] PASS` |
 | **`IMP-06`** | `Stack Synergy Engine` + Volumetria 3 Tiers (`Seed/Growth/Scale`) + Gate `FINOPS-VIABILITY-N` | `src/synergy-finops-validator.ts`, `skills/research/SKILL.md` | **`VAL-06`**: `test/synergy-finops.test.ts` (2 pass) | `[x] PASS` |
@@ -21,9 +21,11 @@ Este documento governa a implementação e verificação empírica da skill/plug
 | **`IMP-12`** | Relatório Executivo Pós-Planejamento (7.5 → 8) + Orquestrador Multi-Agente (`1 Fresh Spawn por SI`) | `src/executive-report.ts`, `skills/implement-phase/SKILL.md` | **`VAL-12`**: `test/executive-orchestrator.test.ts` (1 pass) | `[x] PASS` |
 | **`IMP-13`** | Etapa 10: Loop de Aprendizado Contínuo (`<friction-and-learnings>`) e Auto-Evolução de Regras | `src/learning-loop.ts`, `skills/plan-rule-author/SKILL.md` | **`VAL-13`**: `test/learning-loop.test.ts` (1 pass) | `[x] PASS` |
 | **`IMP-14`** | Etapa 11: Publicação Produtiva Cloud (`GitHub Actions First` + `gcloud`/`wrangler`/`aws`/`az` + 3 Manuais) | `src/cloud-release-validator.ts`, `skills/cloud-release/SKILL.md` | **`VAL-14`**: `test/cloud-release.test.ts` (1 pass) | `[x] PASS` |
-| **`IMP-15`** | Documentação Oficial Completa (`README.md` de 12 seções cobrindo toda a arquitetura e governança) | `README.md` | **`VAL-15`**: `test/readme-completeness.test.ts` (1 pass) | `[x] PASS` |
-| **`IMP-16`** | Port Completo das 27 Skills de Planejamento (>860 KB) + Integração Real de Ferramentas/Resiliência Ensemble | `skills/` (60 arquivos), `src/tools/` (16 arquivos), `src/watchdog.ts`, `src/recovery.ts`, `src/process.ts` | **`VAL-16`**: `test/skills-completeness.test.ts` (3 pass) | `[x] PASS` |
+| **`IMP-15`** | Documentação Oficial Completa (`README.md` de 14 seções cobrindo toda a arquitetura e governança) | `README.md` | **`VAL-15`**: `test/readme-completeness.test.ts` (3 pass) | `[x] PASS` |
+| **`IMP-16`** | Port Completo das 27+ Skills de Planejamento (>860 KB) + Integração Real de Ferramentas/Resiliência Ensemble | `skills/` (61 arquivos), `src/tools/` (16 arquivos), `src/watchdog.ts`, `src/recovery.ts`, `src/process.ts` | **`VAL-16`**: `test/skills-completeness.test.ts` (3 pass) | `[x] PASS` |
 | **`IMP-17`** | Regra Mandatória de Sincronia Contínua do README (`Mandato README-SYNC-0` em Fases, Brownfield e na Skill) | `rules/mandatory-readme-sync.md`, `src/readme-sync-evaluator.ts`, `src/brownfield-gate.ts`, `skills/implement-phase/SKILL.md` | **`VAL-17`**: `test/readme-sync-gate.test.ts` (4 pass) | `[x] PASS` |
+| **`IMP-18`** | Runner Portável Unificado (`setup`, `run`, `trace`, `verify`, `status`, `uninstall`) com Entrypoints `.sh`/`.ps1` | `src/runner.ts`, `scripts/runner.ts`, `agy-ensemble.sh`, `agy-ensemble.ps1`, `setup.sh`, `setup.ps1`, `run.sh`, `run.ps1` | **`VAL-18`**: `test/runner.test.ts` (7 pass) | `[x] PASS` |
+| **`IMP-19`** | Instalador `bunx`/`npx` Multi-Projeto (`.agents/plugins/agy-ensemble`, `~/.agy-ensemble`, `AGENTS.md`, `.gitignore`, `--with-templates`) + Manifestos Nativos Antigravity | `bin/agy-ensemble.mjs`, `scripts/installer-core.mjs`, `src/installer.ts`, `.gemini-plugin/plugin.json`, `mcp_config.json`, `hooks.json`, `rules/AGENTS.md`, `sidecars/trace-graph/sidecar.json` | **`VAL-19`**: `test/installer.test.ts` (6 pass) | `[x] PASS` |
 
 ## 2. Bateria de Testes End-to-End nos Projetos-Piloto (`E2E-P0..P4`)
 

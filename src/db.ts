@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import fs from "node:fs";
 import path from "node:path";
 import { applyMigrations } from "./schema";
 
@@ -110,6 +111,12 @@ export function getDbPath(
  * Create and initialize a SQLite database at the given path in WAL mode.
  */
 export function createDb(dbPath: string): Database {
+	if (dbPath !== ":memory:" && !dbPath.startsWith("file:")) {
+		const parentDir = path.dirname(dbPath);
+		if (parentDir && parentDir !== ".") {
+			fs.mkdirSync(parentDir, { recursive: true });
+		}
+	}
 	const db = openDatabase(dbPath);
 	db.exec("PRAGMA journal_mode=WAL");
 	db.exec("PRAGMA foreign_keys=ON");

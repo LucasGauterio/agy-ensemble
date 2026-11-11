@@ -6,11 +6,12 @@
   "main": "dist/index.js",
   "exports": {
     ".": "./src/index.ts",
+    "./installer": "./src/installer.ts",
     "./mcp": "./src/mcp-server.ts",
     "./runner": "./src/runner.ts"
   },
   "bin": {
-    "agy-ensemble": "./scripts/runner.ts"
+    "agy-ensemble": "./bin/agy-ensemble.mjs"
   },
   "type": "module",
   "license": "MIT",

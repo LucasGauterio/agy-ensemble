@@ -44,22 +44,58 @@ O **`agy-ensemble`** resolve dois problemas clássicos do desenvolvimento assist
 ## 2. Como Instalar e Configurar
 
 ### Pré-requisitos
-- **Node.js**: `>= 24.0.0` ou **Bun**: `>= 1.0.0`
+- **Bun**: `>= 1.0.0` (recomendado) ou **Node.js**: `>= 24.0.0`
 - **Git**: `>= 2.30.0`
 - **Docker & Docker Compose**: para execução dos containers de infraestrutura e cofre Vault da Onda Zero
 - **Google Antigravity IDE / CLI (`agy`)** ou ambiente compatível com OpenCode / MCP
 
 ---
 
-### Instalação em Comando Único (Setup Automatizado)
+### Instalação Instantânea em Qualquer Projeto (`bunx` / `npx`)
 
-Para configurar e instalar tudo em um único comando (detecta runtime, instala dependências, compila bundles, vincula a skill e registra o servidor MCP no `mcp.json` do Antigravity):
+Dentro da pasta do projeto onde você deseja ativar o `agy-ensemble`, execute um único comando:
 
 ```bash
-# No Linux / macOS / WSL:
-./setup.sh               # ou ./agy-ensemble.sh setup
+# Usando Bun (recomendado):
+bunx github:LucasGauterio/agy-ensemble
 
-# No Windows (PowerShell):
+# Ou informando outro diretório e incluindo templates (Gitleaks, SonarQube, Docker Infra, Design System):
+bunx github:LucasGauterio/agy-ensemble ./meu-projeto --with-templates
+
+# Também compatível com npx (Node.js):
+npx github:LucasGauterio/agy-ensemble
+```
+
+O instalador executa automaticamente:
+1. Clona/atualiza a versão mais recente do repositório `LucasGauterio/agy-ensemble` em `~/.agy-ensemble`, instala dependências e compila `dist/`.
+2. Vincula o plugin completo em `<projeto>/.agents/plugins/agy-ensemble` (habilitando as 30 skills, agentes `worker-teammate`/`worker-pentest`, regras LGPD/README, `hooks.json`, sidecar `trace-graph` e `mcp_config.json`).
+3. Cria `AGENTS.md` inicial caso o projeto ainda não possua um (sem nunca sobrescrever regras já existentes).
+4. Atualiza `.gitignore` com `.ensemble/` e `.agents/plugins/agy-ensemble`.
+5. Registra o servidor MCP e a skill no `~/.gemini/antigravity/` (ou também em `./mcp.json` com `--local-mcp`).
+
+Principais flags disponíveis:
+- `--target <dir>` (ou argumento posicional): diretório do projeto alvo (padrão: `.`).
+- `--with-templates`: copia `.gitleaks.toml`, `sonar-project.properties`, `docker-compose.infra.yml`, `scripts/test-env/run-phase-gate.sh` e `docs/DESIGN_SYSTEM.md` sem sobrescrever arquivos já existentes.
+- `--local-mcp`: gera/mescla `./mcp.json` na raiz do projeto alvo.
+- `--no-global`: restringe a configuração apenas ao projeto alvo (não altera `~/.gemini/antigravity/`).
+- `--no-update`: reutiliza `~/.agy-ensemble` sem rodar `git pull`.
+- `--source <dir>`: usa um clone local existente em vez de clonar do GitHub.
+- `--dry-run`: simula todas as etapas sem escrever arquivos.
+- `uninstall [dir]`: remove a integração do `agy-ensemble` do projeto sem apagar seu código ou `AGENTS.md`.
+
+---
+
+### Instalação Local a Partir de um Clone (`setup` / CLI)
+
+Para configurar a partir de um clone local do repositório `agy-ensemble` (ou instalar em outro projeto via CLI):
+
+```bash
+# Instalar em um projeto específico a partir do clone:
+./agy-ensemble.sh install /caminho/do/projeto   # Linux / macOS / WSL
+.\agy-ensemble.ps1 install C:\projetos\meu-app  # Windows PowerShell
+
+# Configurar o repositório localmente no Antigravity global:
+./setup.sh               # ou ./agy-ensemble.sh setup
 .\setup.ps1              # ou .\agy-ensemble.ps1 setup
 ```
 
@@ -403,15 +439,26 @@ No `agy-ensemble`, **Compliance com a LGPD (Lei nº 13.709/2018), Segurança OWA
 
 ```text
 agy-ensemble/
-├── .gemini-plugin/plugin.json             # Manifesto do Plugin Google Antigravity
-├── mcp.json                               # Configuração do servidor MCP agy-ensemble
-├── hooks/hooks.json                       # Hooks PreToolUse / PostToolUse (Isolamento, Gitleaks, FinOps)
+├── .gemini-plugin/plugin.json             # Manifesto nativo do Plugin Google Antigravity
+├── assets/logo.svg                        # Ícone oficial do plugin
+├── mcp_config.json                        # Configuração MCP nativa do plugin agy-ensemble
+├── hooks.json                             # Hooks PreToolUse / PostToolUse (Isolamento, Gitleaks, FinOps)
 ├── SKILL.md                               # Skill Raiz (/agy-ensemble — Etapas 0.0 a 11)
 ├── AGENTS.md                              # Regras de governança e invariantes
 ├── README.md                              # Documentação mestre do projeto
-├── docs/IMPLEMENTATION_AND_VALIDATION.md  # Matriz oficial IMP-00..15 e VAL-00..15
+├── bin/agy-ensemble.mjs                   # Entrypoint CLI/bunx/npx para instalação em projetos
+├── scripts/
+│   ├── installer-core.mjs                 # Motor portável de instalação, clone/update e templates
+│   ├── hook-handler.mjs                   # Handler dos hooks de ciclo de vida do plugin
+│   └── runner.ts                          # CLI runner local (install/setup/run/trace/verify/status)
+├── rules/
+│   ├── AGENTS.md                          # Regras ativas carregadas pelo plugin
+│   └── mandatory-readme-sync.md           # Mandato README-SYNC-0 (trigger: always_on)
+├── docs/IMPLEMENTATION_AND_VALIDATION.md  # Matriz oficial IMP-00..19 e VAL-00..19
 ├── src/                                   # Módulos TypeScript (Strict Mode, 0 any)
 │   ├── db.ts & schema.ts                  # Adapter SQLite WAL (bun:sqlite / node:sqlite)
+│   ├── installer.ts                       # API tipada do instalador multi-projeto
+│   ├── runner.ts                          # Runner CLI & gerenciamento de configurações Antigravity
 │   ├── mcp-server.ts                      # Implementação das 15 tools MCP + preserveBranch
 │   ├── brownfield-gate.ts                 # Etapa 0.0: Gate Bloqueante Brownfield & Sync
 │   ├── interview-engine.ts                # Etapa 1.0: Entrevista Iterativa & Requisição Consolidada
@@ -428,10 +475,10 @@ agy-ensemble/
 │   ├── learning-loop.ts                   # Etapa 10: <friction-and-learnings> -> KNOWLEDGE_BASE & rules
 │   └── cloud-release-validator.ts         # Etapa 11: GitHub Actions + Multi-Cloud + 3 Runbooks
 ├── sidecars/trace-graph/                  # Live Execution Trace Graph UI (sidecar://agy-ensemble/trace-graph)
-├── skills/                                # Sub-skills especializadas do pipeline
+├── skills/                                # Skill /agy-ensemble e 29 sub-skills especializadas do pipeline
 ├── agents/                                # worker-teammate.md e worker-pentest.md
 ├── templates/                             # Templates (Docker Compose Infra, Sonar, Gitleaks, Design System)
-└── test/                                  # Suíte automatizada de validação (VAL-00 a VAL-15)
+└── test/                                  # Suíte automatizada de validação (VAL-00 a VAL-19)
 ```
 
 ### 14.3 Comandos de Build, Lint, Typecheck e Validação

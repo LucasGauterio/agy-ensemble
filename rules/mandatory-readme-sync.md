@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Regra Mandatória: Sincronia Contínua do README (Mandato README-SYNC-0)
 
 > [!IMPORTANT]

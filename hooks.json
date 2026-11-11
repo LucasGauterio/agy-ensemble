@@ -1,0 +1,32 @@
+{
+  "agy-ensemble-telemetry": {
+    "PostToolUse": [
+      {
+        "matcher": "ensemble_.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hook-handler.mjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "agy-ensemble-gitleaks-guard": {
+    "enabled": false,
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hook-handler.mjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
+
