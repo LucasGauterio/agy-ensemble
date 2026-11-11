@@ -69,14 +69,28 @@ export function findExecutable(cmd) {
 }
 
 /**
- * Find a usable Bun binary (system PATH, ~/.bun/bin, or local node_modules/.bin).
+ * Check whether an executable path is inside a temporary/local node_modules/.bin directory.
+ *
+ * @param {string} exePath
+ * @returns {boolean}
+ */
+function isNodeModulesBinPath(exePath) {
+	const normalized = exePath.toLowerCase();
+	return (
+		normalized.includes(`${path.sep}node_modules${path.sep}.bin${path.sep}`) ||
+		normalized.includes("/node_modules/.bin/")
+	);
+}
+
+/**
+ * Find a usable Bun binary (global system PATH, ~/.bun/bin, or repoDir's node_modules/.bin).
  *
  * @param {string} [repoDir]
  * @returns {string | null}
  */
 export function findBunExecutable(repoDir) {
 	const onPath = findExecutable("bun");
-	if (onPath) return onPath;
+	if (onPath && !isNodeModulesBinPath(onPath)) return onPath;
 
 	const homeBun = path.join(
 		os.homedir(),
@@ -100,6 +114,7 @@ export function findBunExecutable(repoDir) {
 		}
 	}
 
+	if (onPath) return onPath;
 	return null;
 }
 
@@ -114,7 +129,8 @@ export function resolveMcpRuntime(preferred, repoDir) {
 	if (preferred === "bun" || preferred === "node") {
 		return preferred;
 	}
-	if (findExecutable("bun")) {
+	const onPath = findExecutable("bun");
+	if (onPath && !isNodeModulesBinPath(onPath)) {
 		return "bun";
 	}
 	const bunBin = findBunExecutable(repoDir);
