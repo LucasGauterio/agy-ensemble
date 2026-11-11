@@ -1,7 +1,14 @@
 #!/usr/bin/env node
+import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import http from "node:http";
+import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PLUGIN_ROOT_DIR = path.resolve(__dirname, "..");
 
 function readStdin() {
 	return new Promise((resolve) => {
@@ -43,6 +50,121 @@ function sanitizePayload(value, depth = 0) {
 		return out;
 	}
 	return value;
+}
+
+function getRegistryPath() {
+	if (process.env.AGY_ENSEMBLE_TRACE_REGISTRY) {
+		return path.resolve(process.env.AGY_ENSEMBLE_TRACE_REGISTRY);
+	}
+	return path.join(os.homedir(), ".agy-ensemble", "trace-registry.json");
+}
+
+function registerProject(projectDir, dbPath) {
+	try {
+		const registryPath = getRegistryPath();
+		const resolvedDb = path.resolve(dbPath);
+		const resolvedProj = path.resolve(projectDir);
+		let existing = [];
+		if (fs.existsSync(registryPath)) {
+			try {
+				const parsed = JSON.parse(fs.readFileSync(registryPath, "utf8"));
+				if (Array.isArray(parsed)) existing = parsed;
+			} catch {
+				existing = [];
+			}
+		}
+		const filtered = existing.filter(
+			(e) => e && typeof e.dbPath === "string" && path.resolve(e.dbPath) !== resolvedDb,
+		);
+		const updated = [
+			{
+				projectDir: resolvedProj,
+				projectName: path.basename(resolvedProj) || resolvedProj,
+				dbPath: resolvedDb,
+				dbExists: fs.existsSync(resolvedDb),
+				updatedAt: Date.now(),
+			},
+			...filtered,
+		].slice(0, 20);
+		fs.mkdirSync(path.dirname(registryPath), { recursive: true });
+		fs.writeFileSync(registryPath, `${JSON.stringify(updated, null, 2)}\n`, "utf8");
+	} catch {
+		// Ignore registry errors
+	}
+}
+
+function probeTraceServer(port) {
+	return new Promise((resolve) => {
+		const req = http.get(
+			{ host: "127.0.0.1", port, path: "/api/trace/health", timeout: 250 },
+			(res) => {
+				res.resume();
+				resolve(res.statusCode === 200);
+			},
+		);
+		req.on("timeout", () => {
+			req.destroy();
+			resolve(false);
+		});
+		req.on("error", () => resolve(false));
+	});
+}
+
+async function ensureTraceDaemonForWorkspace(payload) {
+	if (process.env.AGY_ENSEMBLE_DISABLE_TRACE_SERVER === "1") return;
+
+	const cwd =
+		typeof payload.cwd === "string" && payload.cwd
+			? payload.cwd
+			: Array.isArray(payload.workspacePaths) && payload.workspacePaths[0]
+				? String(payload.workspacePaths[0])
+				: "";
+	if (!cwd || !fs.existsSync(cwd)) return;
+
+	const pluginActive = fs.existsSync(
+		path.join(cwd, ".agents", "plugins", "agy-ensemble"),
+	);
+	const dbPath =
+		process.env.ENSEMBLE_DB_PATH && path.isAbsolute(process.env.ENSEMBLE_DB_PATH)
+			? process.env.ENSEMBLE_DB_PATH
+			: path.join(cwd, process.env.ENSEMBLE_DB_PATH || ".ensemble/team.db");
+	const dbExists = fs.existsSync(dbPath);
+
+	if (!pluginActive && !dbExists) return;
+
+	registerProject(cwd, dbPath);
+
+	const rawPort = Number.parseInt(
+		process.env.AGY_ENSEMBLE_TRACE_PORT || "4141",
+		10,
+	);
+	const port = Number.isNaN(rawPort) ? 4141 : rawPort;
+	if (await probeTraceServer(port)) return;
+
+	const binCandidates = [
+		path.join(cwd, ".agents", "plugins", "agy-ensemble", "bin", "agy-ensemble.mjs"),
+		path.join(PLUGIN_ROOT_DIR, "bin", "agy-ensemble.mjs"),
+		path.join(os.homedir(), ".agy-ensemble", "bin", "agy-ensemble.mjs"),
+	];
+	const binEntry = binCandidates.find((p) => fs.existsSync(p));
+	if (!binEntry) return;
+
+	try {
+		const child = spawn(
+			process.execPath,
+			[binEntry, "trace", "--daemon", "--watch-ls", "--target", cwd, "--port", String(port)],
+			{
+				cwd,
+				detached: true,
+				stdio: "ignore",
+				windowsHide: true,
+				env: process.env,
+			},
+		);
+		child.unref();
+	} catch {
+		// Ignore background spawn failure
+	}
 }
 
 async function recordHookTelemetry(payload) {
@@ -179,7 +301,10 @@ async function main() {
 	}
 
 	try {
-		await recordHookTelemetry(payload);
+		await ensureTraceDaemonForWorkspace(payload);
+		if (eventName === "PostToolUse") {
+			await recordHookTelemetry(payload);
+		}
 	} catch {
 		// Telemetry must never break hook execution
 	}

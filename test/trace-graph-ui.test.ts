@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -15,6 +15,7 @@ import {
 	formatSseTraceEvent,
 	getInspectorDrawerData,
 	readTraceSnapshotFromFile,
+	startResilientTraceServer,
 	startTraceGraphServer,
 } from "../src/trace-graph-server";
 
@@ -108,6 +109,7 @@ describe("IMP-04 / VAL-04: Live Execution Trace Graph UI & 3-Level Semantic Zoom
 	test("serves live Trace Graph HTTP/SSE endpoints without prematurely creating missing DB and records hook telemetry safely", async () => {
 		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-trace-http-"));
 		const dbPath = path.join(tmpDir, ".ensemble", "team.db");
+		const registryPath = path.join(tmpDir, "trace-registry.json");
 		const hookScript = path.resolve(
 			import.meta.dir,
 			"..",
@@ -129,6 +131,11 @@ describe("IMP-04 / VAL-04: Live Execution Trace Graph UI & 3-Level Semantic Zoom
 					cwd: tmpDir,
 					toolCall: { name: "run_command", args: { CommandLine: "echo ok" } },
 				}),
+				env: {
+					...process.env,
+					AGY_ENSEMBLE_DISABLE_TRACE_SERVER: "1",
+					AGY_ENSEMBLE_TRACE_REGISTRY: registryPath,
+				},
 				encoding: "utf8",
 			});
 			expect(hookNoDbOut.trim()).toBe("{}");
@@ -161,11 +168,20 @@ describe("IMP-04 / VAL-04: Live Execution Trace Graph UI & 3-Level Semantic Zoom
 						args: { CommandLine: "echo 123.456.789-00", token: "secret-abc" },
 					},
 				}),
+				env: {
+					...process.env,
+					AGY_ENSEMBLE_DISABLE_TRACE_SERVER: "1",
+					AGY_ENSEMBLE_TRACE_REGISTRY: registryPath,
+				},
 				encoding: "utf8",
 			});
 			expect(hookOut.trim()).toBe("{}");
 
-			const server = await startTraceGraphServer({ dbPath, port: 0 });
+			const server = await startTraceGraphServer({
+				dbPath,
+				port: 0,
+				registryPath,
+			});
 			try {
 				const healthRes = await fetch(`${server.url}/api/trace/health`);
 				expect(healthRes.status).toBe(200);
@@ -224,6 +240,147 @@ describe("IMP-04 / VAL-04: Live Execution Trace Graph UI & 3-Level Semantic Zoom
 			}
 		} finally {
 			fs.rmSync(tmpDir, { recursive: true, force: true });
+		}
+	});
+
+	test("auto-starts singleton Trace Graph HTTP server when MCP stdio server runs without corrupting JSON-RPC stdout", async () => {
+		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-mcp-autostart-"));
+		const dbPath = path.join(tmpDir, ".ensemble", "team.db");
+		const mcpEntry = path.resolve(import.meta.dir, "..", "src", "mcp-server.ts");
+		const tracePort = 44141 + Math.floor(Math.random() * 1000);
+
+		const child = spawn(process.execPath, ["run", mcpEntry], {
+			cwd: tmpDir,
+			env: {
+				...process.env,
+				ENSEMBLE_DB_PATH: dbPath,
+				AGY_ENSEMBLE_TRACE_PORT: String(tracePort),
+				AGY_ENSEMBLE_TRACE_REGISTRY: path.join(tmpDir, "trace-registry.json"),
+			},
+			stdio: ["pipe", "pipe", "pipe"],
+		});
+
+		try {
+			const initOut = await new Promise<string>((resolve, reject) => {
+				let buf = "";
+				const timer = setTimeout(
+					() => reject(new Error(`Timed out waiting for MCP init: ${buf}`)),
+					5000,
+				);
+				child.stdout.on("data", (chunk) => {
+					buf += String(chunk);
+					if (buf.includes("\n")) {
+						clearTimeout(timer);
+						resolve(buf.trim());
+					}
+				});
+				child.stdin.write(
+					`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" })}\n`,
+				);
+			});
+
+			const parsed = JSON.parse(initOut) as {
+				jsonrpc: string;
+				id: number;
+				result: { serverInfo: { name: string } };
+			};
+			expect(parsed.jsonrpc).toBe("2.0");
+			expect(parsed.result.serverInfo.name).toBe("agy-ensemble");
+
+			// Wait briefly for the async HTTP listener inside startMcpStdioServer
+			let healthOk = false;
+			for (let i = 0; i < 20; i++) {
+				try {
+					const res = await fetch(`http://127.0.0.1:${tracePort}/api/trace/health`);
+					if (res.ok) {
+						const body = (await res.json()) as { status: string };
+						if (body.status === "ok") {
+							healthOk = true;
+							break;
+						}
+					}
+				} catch {
+					// retry
+				}
+				await new Promise((r) => setTimeout(r, 100));
+			}
+			expect(healthOk).toBe(true);
+		} finally {
+			const exited = new Promise<void>((res) => {
+				child.once("exit", () => res());
+				setTimeout(() => res(), 1000);
+			});
+			child.stdin.end();
+			child.kill();
+			await exited;
+			try {
+				fs.rmSync(tmpDir, { recursive: true, force: true });
+			} catch {
+				// ignore lingering Windows handle on temp cleanup
+			}
+		}
+	});
+
+	test("keeps tracing endpoint alive via standby failover when an earlier agy-ensemble session exits", async () => {
+		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-trace-failover-"));
+		const registryPath = path.join(tmpDir, "trace-registry.json");
+		const projA = path.join(tmpDir, "proj-a");
+		const projB = path.join(tmpDir, "proj-b");
+		const dbA = path.join(projA, ".ensemble", "team.db");
+		const dbB = path.join(projB, ".ensemble", "team.db");
+		fs.mkdirSync(path.dirname(dbA), { recursive: true });
+		fs.mkdirSync(path.dirname(dbB), { recursive: true });
+
+		const db = createDb(dbB);
+		ensembleCreate(db, { name: "proj-b-team", leadSessionId: "lead-b" });
+		db.close();
+
+		const port = 45141 + Math.floor(Math.random() * 1000);
+		const first = await startResilientTraceServer({
+			dbPath: dbA,
+			port,
+			registryPath,
+			pollIntervalMs: 80,
+		});
+		const second = await startResilientTraceServer({
+			dbPath: dbB,
+			port,
+			registryPath,
+			pollIntervalMs: 80,
+		});
+
+		try {
+			expect(first.isOwner()).toBe(true);
+			expect(second.isOwner()).toBe(false);
+
+			// First owner serves projB automatically when projA has no DB yet
+			const res1 = await fetch(`${first.url}/api/trace/state?zoom=2`);
+			const snap1 = (await res1.json()) as {
+				team: { name: string } | null;
+				projects: Array<{ projectName: string }>;
+			};
+			expect(snap1.team?.name).toBe("proj-b-team");
+			expect(snap1.projects.length).toBeGreaterThanOrEqual(2);
+
+			// Shut down first session; second session must claim the port automatically
+			await first.close();
+			for (let i = 0; i < 30 && !second.isOwner(); i++) {
+				await new Promise((r) => setTimeout(r, 60));
+			}
+			expect(second.isOwner()).toBe(true);
+
+			const res2 = await fetch(`${second.url}/api/trace/health`);
+			expect(res2.status).toBe(200);
+			const health2 = (await res2.json()) as { status: string };
+			expect(health2.status).toBe("ok");
+		} finally {
+			await first.close();
+			await second.close();
+			try {
+				fs.rmSync(tmpDir, { recursive: true, force: true });
+			} catch {
+				// ignore Windows temp handle
+			}
 		}
 	});
 });

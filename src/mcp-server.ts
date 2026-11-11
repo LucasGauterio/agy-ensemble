@@ -1,10 +1,15 @@
 import crypto from "node:crypto";
+import path from "node:path";
 import readline from "node:readline";
 import { type Database, createDb } from "./db";
 import {
 	recordActionSpanComplete,
 	recordActionSpanStart,
 } from "./trace-collector";
+import {
+	type ResilientTraceServerHandle,
+	startResilientTraceServer,
+} from "./trace-graph-server";
 
 export interface PhasePlanStepInput {
 	siId: string;
@@ -1399,19 +1404,81 @@ export function handleMcpJsonRpcRequest(
 }
 
 /**
- * Start the MCP JSON-RPC 2.0 stdio server listening on process.stdin.
+ * Resolve the ensemble SQLite DB path, avoiding writing inside .agents/plugins/<name>/
+ * when Antigravity spawns plugin MCP servers with cwd set to the plugin folder.
+ */
+export function resolveEnsembleDbPath(
+	rawDbPath: string = process.env.ENSEMBLE_DB_PATH || ".ensemble/team.db",
+	cwd: string = process.cwd(),
+): string {
+	if (
+		rawDbPath === ":memory:" ||
+		rawDbPath.startsWith("file:") ||
+		path.isAbsolute(rawDbPath)
+	) {
+		return rawDbPath;
+	}
+
+	const resolvedCwd = path.resolve(cwd);
+	const pluginDir = path.basename(resolvedCwd);
+	const pluginsParent = path.dirname(resolvedCwd);
+	const agentsParent = path.dirname(pluginsParent);
+
+	if (
+		pluginDir === "agy-ensemble" &&
+		path.basename(pluginsParent) === "plugins" &&
+		path.basename(agentsParent) === ".agents"
+	) {
+		return path.resolve(path.dirname(agentsParent), rawDbPath);
+	}
+
+	return path.resolve(resolvedCwd, rawDbPath);
+}
+
+/**
+ * Start the MCP JSON-RPC 2.0 stdio server listening on process.stdin
+ * and ensure the singleton Mission Control Trace Graph server is listening on port 4141.
  *
  * @param dbPath - Path to SQLite database (defaults to ENSEMBLE_DB_PATH or .ensemble/team.db)
  */
 export function startMcpStdioServer(
 	dbPath: string = process.env.ENSEMBLE_DB_PATH || ".ensemble/team.db",
 ): void {
-	const db = createDb(dbPath);
+	const resolvedDbPath = resolveEnsembleDbPath(dbPath);
+	const db = createDb(resolvedDbPath);
 	const rl = readline.createInterface({
 		input: process.stdin,
 		output: process.stdout,
 		terminal: false,
 	});
+
+	let traceHandle: ResilientTraceServerHandle | null = null;
+	if (
+		process.env.AGY_ENSEMBLE_DISABLE_TRACE_SERVER !== "1" &&
+		resolvedDbPath !== ":memory:"
+	) {
+		const rawPort = Number.parseInt(
+			process.env.AGY_ENSEMBLE_TRACE_PORT || "4141",
+			10,
+		);
+		const tracePort = Number.isNaN(rawPort) ? 4141 : rawPort;
+		startResilientTraceServer({ dbPath: resolvedDbPath, port: tracePort })
+			.then((handle) => {
+				traceHandle = handle;
+			})
+			.catch(() => {
+				// Ignore transient listener errors to keep MCP stdio healthy
+			});
+	}
+
+	const shutdown = (): void => {
+		const closeTrace = traceHandle
+			? traceHandle.close().catch(() => undefined)
+			: Promise.resolve();
+		closeTrace.finally(() => {
+			process.exit(0);
+		});
+	};
 
 	rl.on("line", (line) => {
 		const trimmed = line.trim();
@@ -1436,9 +1503,9 @@ export function startMcpStdioServer(
 		}
 	});
 
-	process.on("SIGINT", () => {
-		process.exit(0);
-	});
+	rl.on("close", shutdown);
+	process.on("SIGINT", shutdown);
+	process.on("SIGTERM", shutdown);
 }
 
 // Auto-start stdio server when executed directly as CLI script

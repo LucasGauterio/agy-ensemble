@@ -1,5 +1,12 @@
 {
   "agy-ensemble-telemetry": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node scripts/hook-handler.mjs",
+        "timeout": 10
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "run_command|write_file|edit_file|replace_file_content|multi_replace_file_content|ensemble_.*",

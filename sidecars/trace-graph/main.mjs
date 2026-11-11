@@ -100,11 +100,28 @@ async function start() {
 			const teamId = typeof data?.teamId === "string" && data.teamId ? data.teamId : undefined;
 			const zoomLevel = parseZoom(data?.zoom);
 			const maxTimestampMs = parseMaxTs(data?.maxTs);
-			return traceHelpers.readTraceSnapshotFromFile(dbPath, {
+			const reqProject =
+				typeof data?.projectDir === "string" && data.projectDir
+					? path.resolve(data.projectDir, ".ensemble", "team.db")
+					: dbPath;
+			const snap = traceHelpers.readTraceSnapshotFromFile(reqProject, {
 				teamId,
 				zoomLevel,
 				maxTimestampMs,
 			});
+			const projects =
+				typeof traceHelpers.listTraceProjects === "function"
+					? traceHelpers.listTraceProjects()
+					: [];
+			return {
+				...snap,
+				activeDbPath: reqProject,
+				activeProjectDir:
+					typeof traceHelpers.resolveProjectDirFromDbPath === "function"
+						? traceHelpers.resolveProjectDirFromDbPath(reqProject)
+						: path.dirname(path.dirname(reqProject)),
+				projects,
+			};
 		},
 		"GET",
 	);
@@ -119,8 +136,12 @@ async function start() {
 					contentType: "application/json",
 				});
 			}
+			const reqProject =
+				typeof data?.projectDir === "string" && data.projectDir
+					? path.resolve(data.projectDir, ".ensemble", "team.db")
+					: dbPath;
 			try {
-				return traceHelpers.readTraceNodeFromFile(dbPath, spanId);
+				return traceHelpers.readTraceNodeFromFile(reqProject, spanId);
 			} catch (err) {
 				return new Response(
 					JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),

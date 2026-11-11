@@ -16,6 +16,7 @@ import {
 	ensembleTasksComplete,
 	ensembleTasksList,
 	ensembleView,
+	resolveEnsembleDbPath,
 } from "../src/mcp-server";
 
 describe("IMP-01 / VAL-01: agy-ensemble SQLite WAL & 15 MCP Tools", () => {
@@ -338,5 +339,19 @@ describe("IMP-01 / VAL-01: agy-ensemble SQLite WAL & 15 MCP Tools", () => {
 		expect(l2[0]?.si_id).toBe("SI-01.1");
 		expect(l3.map((n) => n.label)).toContain("ensemble_create");
 		expect(l3.map((n) => n.label)).toContain("ensemble_import_phase_plan");
+
+		// 5. Verify resolveEnsembleDbPath escapes .agents/plugins/agy-ensemble cwd back to project root
+		const resolvedFromPluginCwd = resolveEnsembleDbPath(
+			".ensemble/team.db",
+			"/workspace/my-app/.agents/plugins/agy-ensemble",
+		);
+		expect(resolvedFromPluginCwd.replace(/\\/g, "/")).toBe(
+			"/workspace/my-app/.ensemble/team.db".replace(
+				/^\//,
+				process.platform === "win32"
+					? `${resolvedFromPluginCwd.slice(0, 2)}/`
+					: "/",
+			),
+		);
 	});
 });

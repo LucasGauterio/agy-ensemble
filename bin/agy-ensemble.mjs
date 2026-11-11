@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
+import http from "node:http";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import {
@@ -161,6 +162,8 @@ async function main() {
 		case "trace": {
 			const targetDir = path.resolve(parsed.targetDir ?? cwd);
 			const port = parsed.port ?? 4141;
+			const isDaemon = rawArgs.includes("--daemon");
+			const watchLs = rawArgs.includes("--watch-ls");
 			const dbPath =
 				process.env.ENSEMBLE_DB_PATH && path.isAbsolute(process.env.ENSEMBLE_DB_PATH)
 					? process.env.ENSEMBLE_DB_PATH
@@ -179,20 +182,69 @@ async function main() {
 					: path.join(PACKAGE_ROOT_DIR, "src", "trace-graph-server.ts");
 
 			const traceMod = await import(pathToFileURL(modulePath).href);
+			if (typeof traceMod.registerTraceProject === "function") {
+				traceMod.registerTraceProject({
+					dbPath,
+					projectDir: targetDir,
+					pid: process.pid,
+				});
+			}
+
+			if (
+				!parsed.force &&
+				typeof traceMod.isTraceServerHealthy === "function" &&
+				(await traceMod.isTraceServerHealthy(port))
+			) {
+				if (!isDaemon) {
+					console.log(
+						`[agy-ensemble] Mission Control Trace Graph is already running at http://127.0.0.1:${port} (registered ${targetDir})`,
+					);
+				}
+				break;
+			}
+
 			const handle = await traceMod.startTraceGraphServer({ dbPath, port });
-			console.log(
-				`[agy-ensemble] Mission Control Trace Graph listening at ${handle.url}`,
-			);
-			console.log(`[agy-ensemble] Watching SQLite DB: ${dbPath}`);
-			console.log("Press Ctrl+C to stop the trace server.");
+			if (!isDaemon) {
+				console.log(
+					`[agy-ensemble] Mission Control Trace Graph listening at ${handle.url}`,
+				);
+				console.log(`[agy-ensemble] Watching SQLite DB: ${dbPath}`);
+				console.log("Press Ctrl+C to stop the trace server.");
+			}
 
 			await new Promise((resolve) => {
+				let lsTimer = null;
 				const stop = () => {
+					if (lsTimer) clearInterval(lsTimer);
 					handle
 						.close()
 						.then(() => resolve())
 						.catch(() => resolve());
 				};
+				if (watchLs && process.env.ANTIGRAVITY_LS_ADDRESS) {
+					const lsAddr = process.env.ANTIGRAVITY_LS_ADDRESS;
+					let missed = 0;
+					lsTimer = setInterval(() => {
+						const req = http.get(
+							`http://${lsAddr}/healthz`,
+							{ timeout: 1000 },
+							(res) => {
+								res.resume();
+								missed = 0;
+							},
+						);
+						req.on("error", () => {
+							missed += 1;
+							if (missed >= 3) stop();
+						});
+						req.on("timeout", () => {
+							req.destroy();
+							missed += 1;
+							if (missed >= 3) stop();
+						});
+					}, 15000);
+					lsTimer.unref();
+				}
 				process.once("SIGINT", stop);
 				process.once("SIGTERM", stop);
 			});

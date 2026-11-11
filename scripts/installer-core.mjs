@@ -422,6 +422,7 @@ function copyPluginPayload(sourceDir, destDir) {
 		".gemini-plugin",
 		"assets",
 		"agents",
+		"bin",
 		"rules",
 		"skills",
 		"sidecars",
@@ -473,10 +474,61 @@ function readRepoHeadSha(sourceDir) {
  * }} [options]
  * @returns {{ path: string; action: "copied" | "updated" | "exists" }}
  */
+/**
+ * If destDir is inside <project>/.agents/plugins/agy-ensemble, resolve <project>.
+ *
+ * @param {string} destDir
+ * @returns {string | null}
+ */
+function resolveProjectRootFromPluginDir(destDir) {
+	const pluginsDir = path.dirname(destDir);
+	const agentsDir = path.dirname(pluginsDir);
+	if (
+		path.basename(pluginsDir) === "plugins" &&
+		path.basename(agentsDir) === ".agents"
+	) {
+		return path.dirname(agentsDir);
+	}
+	return null;
+}
+
+/**
+ * Migrate any legacy team.db written inside .agents/plugins/agy-ensemble/.ensemble/
+ * up to <project>/.ensemble/ when updating an existing install.
+ *
+ * @param {string} pluginDir
+ * @param {string} projectRootDir
+ */
+function migrateLegacyPluginDb(pluginDir, projectRootDir) {
+	const legacyDbDir = path.join(pluginDir, ".ensemble");
+	const legacyDb = path.join(legacyDbDir, "team.db");
+	if (!fs.existsSync(legacyDb)) return;
+
+	const targetDbDir = path.join(projectRootDir, ".ensemble");
+	const targetDb = path.join(targetDbDir, "team.db");
+	if (fs.existsSync(targetDb)) return;
+
+	try {
+		fs.mkdirSync(targetDbDir, { recursive: true });
+		for (const suffix of ["", "-wal", "-shm"]) {
+			const src = `${legacyDb}${suffix}`;
+			if (fs.existsSync(src)) {
+				fs.copyFileSync(src, `${targetDb}${suffix}`);
+			}
+		}
+	} catch {
+		// Ignore copy failure if locked
+	}
+}
+
 export function syncProjectPluginDirectory(sourceDir, destDir, options = {}) {
 	const resolvedSource = path.resolve(sourceDir);
 	const stampPath = path.join(destDir, ".agy-ensemble-install.json");
 	const headSha = readRepoHeadSha(resolvedSource);
+	const projectRootDir = resolveProjectRootFromPluginDir(path.resolve(destDir));
+	const expectedDbPath = projectRootDir
+		? path.join(projectRootDir, ".ensemble", "team.db")
+		: ".ensemble/team.db";
 
 	let existingStat = null;
 	try {
@@ -494,10 +546,15 @@ export function syncProjectPluginDirectory(sourceDir, destDir, options = {}) {
 			const hasEntrySkill = fs.existsSync(
 				path.join(destDir, "skills", "agy-ensemble", "SKILL.md"),
 			);
+			const hasBinEntry = fs.existsSync(
+				path.join(destDir, "bin", "agy-ensemble.mjs"),
+			);
 			if (
 				stamp?.sourceDir === resolvedSource &&
 				stamp?.headSha === headSha &&
-				hasEntrySkill
+				stamp?.dbPath === expectedDbPath &&
+				hasEntrySkill &&
+				hasBinEntry
 			) {
 				isUpToDate = true;
 			}
@@ -513,6 +570,10 @@ export function syncProjectPluginDirectory(sourceDir, destDir, options = {}) {
 	const action = existingStat ? "updated" : "copied";
 	if (options.dryRun) {
 		return { path: destDir, action };
+	}
+
+	if (projectRootDir && existingStat && !isSymlink) {
+		migrateLegacyPluginDb(destDir, projectRootDir);
 	}
 
 	if (isSymlink) {
@@ -540,7 +601,7 @@ export function syncProjectPluginDirectory(sourceDir, destDir, options = {}) {
 				command: options.runtime,
 				args: [mcpServerScript],
 				env: {
-					ENSEMBLE_DB_PATH: ".ensemble/team.db",
+					ENSEMBLE_DB_PATH: expectedDbPath,
 					AGY_ENSEMBLE_DELEGATE_DEFAULT: "true",
 				},
 			},
@@ -550,7 +611,7 @@ export function syncProjectPluginDirectory(sourceDir, destDir, options = {}) {
 
 	fs.writeFileSync(
 		stampPath,
-		`${JSON.stringify({ sourceDir: resolvedSource, headSha }, null, 2)}\n`,
+		`${JSON.stringify({ sourceDir: resolvedSource, headSha, dbPath: expectedDbPath }, null, 2)}\n`,
 		"utf8",
 	);
 
@@ -1166,7 +1227,8 @@ export function printInstallerHelp() {
 
 Quick Install in Any Project (via bunx / npx):
   bunx github:LucasGauterio/agy-ensemble [target-dir] [options]
-  bunx agy-ensemble install [target-dir] [options]
+  bunx --no-cache github:LucasGauterio/agy-ensemble [target-dir]   (force latest)
+  bun ~/.agy-ensemble/bin/agy-ensemble.mjs trace [target-dir]
   npx github:LucasGauterio/agy-ensemble [target-dir] [options]
 
 Commands:

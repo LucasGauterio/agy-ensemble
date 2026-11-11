@@ -56,11 +56,11 @@ O **`agy-ensemble`** resolve dois problemas clássicos do desenvolvimento assist
 Dentro da pasta do projeto onde você deseja ativar o `agy-ensemble`, execute um único comando:
 
 ```bash
-# Usando Bun (recomendado):
-bunx github:LucasGauterio/agy-ensemble
+# Usando Bun (recomendado — use --no-cache para buscar a versão mais recente do GitHub):
+bunx --no-cache github:LucasGauterio/agy-ensemble
 
 # Ou informando outro diretório e incluindo templates (Gitleaks, SonarQube, Docker Infra, Design System):
-bunx github:LucasGauterio/agy-ensemble ./meu-projeto --with-templates
+bunx --no-cache github:LucasGauterio/agy-ensemble ./meu-projeto --with-templates
 
 # Também compatível com npx (Node.js):
 npx github:LucasGauterio/agy-ensemble
@@ -108,8 +108,10 @@ O mesmo script unificado provê acesso direto aos modos de execução e diagnós
 ./run.sh                 # ou ./agy-ensemble.sh run  (Linux / macOS)
 .\run.ps1                # ou .\agy-ensemble.ps1 run (Windows PowerShell)
 
-# Iniciar o painel visual Mission Control Trace Graph (http://127.0.0.1:4141):
-bunx github:LucasGauterio/agy-ensemble trace --port 4141
+# Iniciar o painel visual Mission Control Trace Graph (http://127.0.0.1:4141)
+# (também sobe automaticamente em 4141 quando o servidor MCP está ativo):
+bun ~/.agy-ensemble/bin/agy-ensemble.mjs trace --port 4141
+bun .agents/plugins/agy-ensemble/bin/agy-ensemble.mjs trace
 ./agy-ensemble.sh trace  # (ou .\agy-ensemble.ps1 trace)
 
 # Inspecionar o status do time, banco SQLite e link da skill:
@@ -387,7 +389,7 @@ No `agy-ensemble`, **Compliance com a LGPD (Lei nº 13.709/2018), Segurança OWA
 
 ## 12. Live Execution Trace Graph UI (*Mission Control*), FinOps (`$` e Tempo) & Auto-Evolução (`Etapa 10`)
 
-- **Painel Sidecar (`sidecar://agy-ensemble/trace-graph/`) ou Servidor Local (`bunx github:LucasGauterio/agy-ensemble trace`):**
+- **Painel Sidecar (`sidecar://agy-ensemble/trace-graph/`) ou Servidor Local (`http://localhost:4141` — iniciado automaticamente com o servidor MCP ou via `bun ~/.agy-ensemble/bin/agy-ensemble.mjs trace`):**
   - Lê ao vivo o banco `<projeto>/.ensemble/team.db`, alimentado automaticamente pelas chamadas MCP (`src/mcp-server.ts`) e pelos hooks de execução (`scripts/hook-handler.mjs`), exibindo em `http://127.0.0.1:4141` (SSE `/api/trace/stream` + JSON `/api/trace/state` / `/api/trace/node`):
   - **Zoom Semântico em 3 Níveis:**
     - *Nível 1 (Macro):* Pipeline de Etapas (`Etapa 0.0` → `Etapa 11`) + HUD FinOps da Fase;

@@ -229,6 +229,30 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 			expect(fs.lstatSync(pluginDir).isSymbolicLink()).toBe(false);
 			expect(fs.lstatSync(pluginDir).isDirectory()).toBe(true);
 
+			// Plugin mcp_config.json must pin ENSEMBLE_DB_PATH to <targetDir>/.ensemble/team.db
+			const pluginMcp = JSON.parse(
+				fs.readFileSync(path.join(pluginDir, "mcp_config.json"), "utf8"),
+			);
+			expect(pluginMcp.mcpServers["agy-ensemble"].env.ENSEMBLE_DB_PATH).toBe(
+				path.join(targetDir, ".ensemble", "team.db"),
+			);
+
+			// Legacy DB placed inside pluginDir/.ensemble/team.db must migrate to <targetDir>/.ensemble/team.db
+			const legacyDbDir = path.join(pluginDir, ".ensemble");
+			fs.mkdirSync(legacyDbDir, { recursive: true });
+			fs.writeFileSync(path.join(legacyDbDir, "team.db"), "legacy-sqlite");
+			installIntoProject({
+				targetDir,
+				sourceDir: PACKAGE_ROOT_DIR,
+				antigravityDir,
+				noGlobal: true,
+				force: true,
+				log: () => {},
+			});
+			expect(
+				fs.existsSync(path.join(targetDir, ".ensemble", "team.db")),
+			).toBe(true);
+
 			const gitignoreLines = fs
 				.readFileSync(path.join(targetDir, ".gitignore"), "utf8")
 				.split(/\r?\n/)

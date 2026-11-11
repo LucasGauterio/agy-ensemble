@@ -1,6 +1,10 @@
 import fs from "node:fs";
-import type { IncomingMessage, Server, ServerResponse } from "node:http";
-import { createServer } from "node:http";
+import http, {
+	type IncomingMessage,
+	type Server,
+	type ServerResponse,
+} from "node:http";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDb, type Database } from "./db";
@@ -37,9 +41,21 @@ interface TeamSummaryRow {
 	time_updated: number;
 }
 
+export interface TraceProjectEntry {
+	projectDir: string;
+	projectName: string;
+	dbPath: string;
+	dbExists: boolean;
+	updatedAt: number;
+	pid?: number;
+}
+
 export interface TraceSnapshot {
 	hasData: boolean;
 	dbExists: boolean;
+	activeProjectDir?: string;
+	activeDbPath?: string;
+	projects?: TraceProjectEntry[];
 	team: TeamSummaryRow | null;
 	teams: TeamSummaryRow[];
 	zoomLevel: 1 | 2 | 3;
@@ -139,6 +155,205 @@ export interface TraceGraphServerHandle {
 	port: number;
 	url: string;
 	close: () => Promise<void>;
+}
+
+export interface ResilientTraceServerHandle {
+	port: number;
+	url: string;
+	isOwner: () => boolean;
+	close: () => Promise<void>;
+}
+
+/**
+ * Resolve the shared trace project registry JSON path.
+ */
+export function getTraceRegistryPath(override?: string): string {
+	if (override && override.trim().length > 0) return path.resolve(override);
+	if (
+		process.env.AGY_ENSEMBLE_TRACE_REGISTRY &&
+		process.env.AGY_ENSEMBLE_TRACE_REGISTRY.trim().length > 0
+	) {
+		return path.resolve(process.env.AGY_ENSEMBLE_TRACE_REGISTRY);
+	}
+	return path.join(os.homedir(), ".agy-ensemble", "trace-registry.json");
+}
+
+/**
+ * Derive project root directory from an ensemble SQLite path (<project>/.ensemble/team.db).
+ */
+export function resolveProjectDirFromDbPath(dbPath: string): string {
+	const resolved = path.resolve(dbPath);
+	const parent = path.dirname(resolved);
+	if (
+		path.basename(resolved) === "team.db" &&
+		path.basename(parent) === ".ensemble"
+	) {
+		return path.dirname(parent);
+	}
+	return parent;
+}
+
+/**
+ * Register or refresh a project's trace DB entry in the shared registry.
+ */
+export function registerTraceProject(input: {
+	dbPath: string;
+	projectDir?: string;
+	pid?: number;
+	registryPath?: string;
+}): TraceProjectEntry[] {
+	if (input.dbPath === ":memory:" || input.dbPath.startsWith("file:")) {
+		return [];
+	}
+	const registryPath = getTraceRegistryPath(input.registryPath);
+	const resolvedDb = path.resolve(input.dbPath);
+	const resolvedProject = path.resolve(
+		input.projectDir ?? resolveProjectDirFromDbPath(resolvedDb),
+	);
+
+	let entries: TraceProjectEntry[] = [];
+	if (fs.existsSync(registryPath)) {
+		try {
+			const parsed = JSON.parse(fs.readFileSync(registryPath, "utf8"));
+			if (Array.isArray(parsed)) {
+				entries = parsed.filter(
+					(e): e is TraceProjectEntry =>
+						Boolean(e && typeof e.dbPath === "string"),
+				);
+			}
+		} catch {
+			entries = [];
+		}
+	}
+
+	const filtered = entries.filter(
+		(e) => path.resolve(e.dbPath) !== resolvedDb,
+	);
+	const nextEntry: TraceProjectEntry = {
+		projectDir: resolvedProject,
+		projectName: path.basename(resolvedProject) || resolvedProject,
+		dbPath: resolvedDb,
+		dbExists: fs.existsSync(resolvedDb),
+		updatedAt: Date.now(),
+		pid: input.pid,
+	};
+	const updated = [nextEntry, ...filtered].slice(0, 20);
+
+	try {
+		fs.mkdirSync(path.dirname(registryPath), { recursive: true });
+		fs.writeFileSync(
+			registryPath,
+			`${JSON.stringify(updated, null, 2)}\n`,
+			"utf8",
+		);
+	} catch {
+		// Registry write must never interrupt MCP or hook execution
+	}
+
+	return updated;
+}
+
+/**
+ * List registered projects from the shared trace registry, sorted by most recently active.
+ */
+export function listTraceProjects(registryPath?: string): TraceProjectEntry[] {
+	const target = getTraceRegistryPath(registryPath);
+	if (!fs.existsSync(target)) return [];
+
+	try {
+		const parsed = JSON.parse(fs.readFileSync(target, "utf8"));
+		if (!Array.isArray(parsed)) return [];
+		return parsed
+			.filter(
+				(e): e is TraceProjectEntry =>
+					Boolean(
+						e &&
+							typeof e.dbPath === "string" &&
+							typeof e.projectDir === "string" &&
+							fs.existsSync(e.projectDir),
+					),
+			)
+			.map((e) => ({
+				...e,
+				projectName: e.projectName || path.basename(e.projectDir),
+				dbExists: fs.existsSync(e.dbPath),
+			}))
+			.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+	} catch {
+		return [];
+	}
+}
+
+function resolveRequestedDbPath(
+	defaultDbPath: string,
+	requestedProjectOrDb?: string,
+	registryPath?: string,
+): string {
+	if (requestedProjectOrDb) {
+		const candidate = requestedProjectOrDb.endsWith(".db")
+			? path.resolve(requestedProjectOrDb)
+			: path.resolve(requestedProjectOrDb, ".ensemble", "team.db");
+		return candidate;
+	}
+
+	const projects = listTraceProjects(registryPath);
+	const latestWithDb = projects.find((p) => p.dbExists);
+
+	if (fs.existsSync(defaultDbPath)) {
+		// If default DB matches a registered project, prefer most recently active DB if another project was updated more recently
+		if (
+			latestWithDb &&
+			path.resolve(latestWithDb.dbPath) !== path.resolve(defaultDbPath)
+		) {
+			const defaultStat = fs.statSync(defaultDbPath).mtimeMs;
+			const latestStat = fs.statSync(latestWithDb.dbPath).mtimeMs;
+			if (latestStat > defaultStat + 1000) {
+				return latestWithDb.dbPath;
+			}
+		}
+		return defaultDbPath;
+	}
+
+	return latestWithDb ? latestWithDb.dbPath : defaultDbPath;
+}
+
+/**
+ * Probe whether a healthy agy-ensemble trace server is already listening on host:port.
+ */
+export function isTraceServerHealthy(
+	port = 4141,
+	host = "127.0.0.1",
+): Promise<boolean> {
+	return new Promise((resolve) => {
+		const req = http.get(
+			{
+				host,
+				port,
+				path: "/api/trace/health",
+				timeout: 350,
+			},
+			(res) => {
+				let body = "";
+				res.setEncoding("utf8");
+				res.on("data", (chunk) => {
+					body += chunk;
+				});
+				res.on("end", () => {
+					try {
+						const parsed = JSON.parse(body) as { service?: string };
+						resolve(res.statusCode === 200 && parsed.service === "trace-graph");
+					} catch {
+						resolve(false);
+					}
+				});
+			},
+		);
+		req.on("timeout", () => {
+			req.destroy();
+			resolve(false);
+		});
+		req.on("error", () => resolve(false));
+	});
 }
 
 /**
@@ -269,6 +484,64 @@ export function getInspectorNodeDetails(
 	db: Database,
 	spanId: string,
 ): TraceInspectorDetails {
+	if (spanId.startsWith("task:")) {
+		const taskId = spanId.slice("task:".length);
+		const taskRow = db
+			.query(
+				`SELECT id, team_id, si_id, content, status, assignee, est_cost_usd, actual_cost_usd, est_duration_ms, actual_duration_ms, time_created, time_updated
+         FROM team_task WHERE id = ?`,
+			)
+			.get(taskId) as
+			| {
+					id: string;
+					team_id: string;
+					si_id: string | null;
+					content: string;
+					status: string;
+					assignee: string | null;
+					est_cost_usd: number;
+					actual_cost_usd: number;
+					est_duration_ms: number;
+					actual_duration_ms: number;
+					time_created: number;
+					time_updated: number;
+			  }
+			| undefined;
+		if (!taskRow) throw new Error(`Trace span not found: ${spanId}`);
+		return {
+			spanId,
+			teamId: taskRow.team_id,
+			zoomLevel: 2,
+			nodeKind: "SI_TASK",
+			label: taskRow.content || taskRow.si_id || taskRow.id,
+			status: taskRow.status,
+			siId: taskRow.si_id,
+			agentName: taskRow.assignee,
+			timeStarted: taskRow.time_created,
+			timeCompleted: taskRow.time_updated,
+			tabs: [
+				"Prompt & Context",
+				"Diff & Files",
+				"Tests & Quality Gate",
+				"Logs & Telemetry",
+			],
+			payload: {
+				taskId: taskRow.id,
+				siId: taskRow.si_id,
+				content: taskRow.content,
+				assignee: taskRow.assignee,
+			},
+			finops: {
+				estCostUsd: taskRow.est_cost_usd,
+				actualCostUsd: taskRow.actual_cost_usd,
+				estDurationMs: taskRow.est_duration_ms,
+				actualDurationMs: taskRow.actual_duration_ms,
+				inputTokens: 0,
+				outputTokens: 0,
+			},
+		};
+	}
+
 	const base = getInspectorDrawerData(db, spanId);
 	const row = db.query("SELECT * FROM trace_nodes WHERE id = ?").get(spanId) as
 		| TraceNodeRow
@@ -451,6 +724,43 @@ export function buildTraceSnapshot(
 		if (endTs > maxTime) maxTime = endTs;
 	}
 
+	const mappedNodes =
+		filteredNodes.length > 0
+			? filteredNodes.map((n) => ({
+					id: n.id,
+					parentId: n.parent_id,
+					label: n.label,
+					nodeKind: n.node_kind,
+					status: n.status,
+					siId: n.si_id,
+					agentName: n.agent_name,
+					estCostUsd: n.est_cost_usd,
+					actualCostUsd: n.actual_cost_usd,
+					estDurationMs: n.est_duration_ms,
+					actualDurationMs: n.actual_duration_ms,
+					timeStarted: n.time_started,
+					timeCompleted: n.time_completed,
+				}))
+			: allNodes.length === 0 && zoomLevel === 2 && tasksRaw.length > 0
+				? tasksRaw
+						.filter((t) => t.si_id || t.content)
+						.map((t) => ({
+							id: `task:${t.id}`,
+							parentId: null,
+							label: t.content || t.si_id || t.id,
+							nodeKind: "SI_TASK",
+							status: t.status,
+							siId: t.si_id,
+							agentName: t.assignee,
+							estCostUsd: t.est_cost_usd,
+							actualCostUsd: t.actual_cost_usd,
+							estDurationMs: t.est_duration_ms,
+							actualDurationMs: t.actual_duration_ms,
+							timeStarted: activeTeam.time_created,
+							timeCompleted: activeTeam.time_updated,
+						}))
+				: [];
+
 	return {
 		hasData: allNodes.length > 0 || tasksRaw.length > 0 || membersRaw.length > 0,
 		dbExists: true,
@@ -459,21 +769,7 @@ export function buildTraceSnapshot(
 		zoomLevel,
 		finops: calculatePhaseFinOpsSummary(db, activeTeam.id),
 		levelCounts,
-		nodes: filteredNodes.map((n) => ({
-			id: n.id,
-			parentId: n.parent_id,
-			label: n.label,
-			nodeKind: n.node_kind,
-			status: n.status,
-			siId: n.si_id,
-			agentName: n.agent_name,
-			estCostUsd: n.est_cost_usd,
-			actualCostUsd: n.actual_cost_usd,
-			estDurationMs: n.est_duration_ms,
-			actualDurationMs: n.actual_duration_ms,
-			timeStarted: n.time_started,
-			timeCompleted: n.time_completed,
-		})),
+		nodes: mappedNodes,
 		edges: edgesRaw.map((e) => ({
 			id: e.id,
 			sourceId: e.source_id,
@@ -620,39 +916,96 @@ export async function startTraceGraphServer(options: {
 	port?: number;
 	host?: string;
 	htmlPath?: string;
+	registryPath?: string;
 }): Promise<TraceGraphServerHandle> {
 	const host = options.host ?? "127.0.0.1";
 	const port = options.port ?? 4141;
 	const htmlPath = options.htmlPath ?? resolveTraceHtmlPath();
+	const registryPath = options.registryPath;
+
+	if (options.dbPath !== ":memory:") {
+		registerTraceProject({ dbPath: options.dbPath, registryPath });
+	}
+
 	const sseClients = new Set<{
 		res: ServerResponse;
+		dbPath: string;
 		teamId?: string;
 		zoomLevel: 1 | 2 | 3;
 		maxTimestampMs?: number;
 		lastFingerprint: string;
 	}>();
 
+	const readEnrichedSnapshot = (params: {
+		requestedProjectOrDb?: string;
+		teamId?: string;
+		zoomLevel: 1 | 2 | 3;
+		maxTimestampMs?: number;
+	}): { dbPath: string; snapshot: TraceSnapshot } => {
+		const activeDbPath = resolveRequestedDbPath(
+			options.dbPath,
+			params.requestedProjectOrDb,
+			registryPath,
+		);
+		const snap = readTraceSnapshotFromFile(activeDbPath, {
+			teamId: params.teamId,
+			zoomLevel: params.zoomLevel,
+			maxTimestampMs: params.maxTimestampMs,
+		});
+		const projects = listTraceProjects(registryPath);
+		const activeProjectDir = resolveProjectDirFromDbPath(activeDbPath);
+		return {
+			dbPath: activeDbPath,
+			snapshot: {
+				...snap,
+				activeDbPath,
+				activeProjectDir,
+				projects,
+			},
+		};
+	};
+
 	const handleRequest = (req: IncomingMessage, res: ServerResponse): void => {
 		const url = new URL(req.url ?? "/", `http://${host}:${port}`);
 
 		if (url.pathname === "/api/trace/health") {
+			const activeDbPath = resolveRequestedDbPath(
+				options.dbPath,
+				url.searchParams.get("projectDir") ||
+					url.searchParams.get("dbPath") ||
+					undefined,
+				registryPath,
+			);
 			writeJsonResponse(res, 200, {
 				status: "ok",
 				service: "trace-graph",
-				dbExists: fs.existsSync(options.dbPath),
-				dbPath: options.dbPath,
+				dbExists: fs.existsSync(activeDbPath),
+				dbPath: activeDbPath,
+				projectsCount: listTraceProjects(registryPath).length,
+			});
+			return;
+		}
+
+		if (url.pathname === "/api/trace/projects") {
+			writeJsonResponse(res, 200, {
+				projects: listTraceProjects(registryPath),
 			});
 			return;
 		}
 
 		if (url.pathname === "/api/trace/state") {
+			const requestedProjectOrDb =
+				url.searchParams.get("projectDir") ||
+				url.searchParams.get("dbPath") ||
+				undefined;
 			const teamId = url.searchParams.get("teamId") || undefined;
 			const zoomLevel = parseZoomParam(url.searchParams.get("zoom"));
 			const maxTimestampMs = parseOptionalNumber(
 				url.searchParams.get("maxTs"),
 			);
 			try {
-				const snapshot = readTraceSnapshotFromFile(options.dbPath, {
+				const { snapshot } = readEnrichedSnapshot({
+					requestedProjectOrDb,
 					teamId,
 					zoomLevel,
 					maxTimestampMs,
@@ -672,8 +1025,17 @@ export async function startTraceGraphServer(options: {
 				writeJsonResponse(res, 400, { error: "Missing spanId query parameter." });
 				return;
 			}
+			const requestedProjectOrDb =
+				url.searchParams.get("projectDir") ||
+				url.searchParams.get("dbPath") ||
+				undefined;
+			const activeDbPath = resolveRequestedDbPath(
+				options.dbPath,
+				requestedProjectOrDb,
+				registryPath,
+			);
 			try {
-				const details = readTraceNodeFromFile(options.dbPath, spanId);
+				const details = readTraceNodeFromFile(activeDbPath, spanId);
 				writeJsonResponse(res, 200, details);
 			} catch (err) {
 				writeJsonResponse(res, 404, {
@@ -684,6 +1046,10 @@ export async function startTraceGraphServer(options: {
 		}
 
 		if (url.pathname === "/api/trace/stream") {
+			const requestedProjectOrDb =
+				url.searchParams.get("projectDir") ||
+				url.searchParams.get("dbPath") ||
+				undefined;
 			const teamId = url.searchParams.get("teamId") || undefined;
 			const zoomLevel = parseZoomParam(url.searchParams.get("zoom"));
 			const maxTimestampMs = parseOptionalNumber(
@@ -695,16 +1061,18 @@ export async function startTraceGraphServer(options: {
 				Connection: "keep-alive",
 			});
 
-			const initial = readTraceSnapshotFromFile(options.dbPath, {
+			const { dbPath: activeDbPath, snapshot: initial } = readEnrichedSnapshot({
+				requestedProjectOrDb,
 				teamId,
 				zoomLevel,
 				maxTimestampMs,
 			});
-			const initialFp = readTraceFingerprint(options.dbPath, teamId).fingerprint;
+			const initialFp = readTraceFingerprint(activeDbPath, teamId).fingerprint;
 			res.write(formatSseTraceEvent("TRACE_SNAPSHOT", initial));
 
 			const client = {
 				res,
+				dbPath: activeDbPath,
 				teamId,
 				zoomLevel,
 				maxTimestampMs,
@@ -730,24 +1098,25 @@ export async function startTraceGraphServer(options: {
 		res.end("Not Found");
 	};
 
-	const server = createServer(handleRequest);
+	const server = http.createServer(handleRequest);
 
 	const pollInterval = setInterval(() => {
 		if (sseClients.size === 0) return;
 		for (const client of sseClients) {
 			try {
 				const { fingerprint } = readTraceFingerprint(
-					options.dbPath,
+					client.dbPath,
 					client.teamId,
 				);
 				if (fingerprint !== client.lastFingerprint) {
 					client.lastFingerprint = fingerprint;
-					const snap = readTraceSnapshotFromFile(options.dbPath, {
+					const { snapshot } = readEnrichedSnapshot({
+						requestedProjectOrDb: client.dbPath,
 						teamId: client.teamId,
 						zoomLevel: client.zoomLevel,
 						maxTimestampMs: client.maxTimestampMs,
 					});
-					client.res.write(formatSseTraceEvent("TRACE_SNAPSHOT", snap));
+					client.res.write(formatSseTraceEvent("TRACE_SNAPSHOT", snapshot));
 				} else {
 					client.res.write(": keepalive\n\n");
 				}
@@ -756,6 +1125,7 @@ export async function startTraceGraphServer(options: {
 			}
 		}
 	}, 1000);
+	pollInterval.unref();
 
 	return new Promise((resolve, reject) => {
 		server.once("error", (err) => {
@@ -786,4 +1156,76 @@ export async function startTraceGraphServer(options: {
 			});
 		});
 	});
+}
+
+/**
+ * Start a resilient singleton Trace Graph HTTP/SSE server with standby failover:
+ * if another agy-ensemble session already holds the port, stays on standby and
+ * automatically claims the port if that previous holder exits.
+ */
+export async function startResilientTraceServer(options: {
+	dbPath: string;
+	port?: number;
+	host?: string;
+	htmlPath?: string;
+	registryPath?: string;
+	pollIntervalMs?: number;
+}): Promise<ResilientTraceServerHandle> {
+	const host = options.host ?? "127.0.0.1";
+	const port = options.port ?? 4141;
+	const registryPath = options.registryPath;
+
+	if (options.dbPath !== ":memory:") {
+		registerTraceProject({
+			dbPath: options.dbPath,
+			pid: process.pid,
+			registryPath,
+		});
+	}
+
+	let activeHandle: TraceGraphServerHandle | null = null;
+	let closed = false;
+
+	const tryAcquire = async (): Promise<void> => {
+		if (closed || activeHandle) return;
+		try {
+			activeHandle = await startTraceGraphServer({
+				dbPath: options.dbPath,
+				port,
+				host,
+				htmlPath: options.htmlPath,
+				registryPath,
+			});
+		} catch (err) {
+			const code = (err as NodeJS.ErrnoException)?.code;
+			if (code !== "EADDRINUSE") {
+				throw err;
+			}
+		}
+	};
+
+	await tryAcquire();
+
+	const standbyTimer = setInterval(async () => {
+		if (closed || activeHandle) return;
+		const healthy = await isTraceServerHealthy(port, host);
+		if (!healthy) {
+			await tryAcquire().catch(() => undefined);
+		}
+	}, options.pollIntervalMs ?? 5000);
+	standbyTimer.unref();
+
+	return {
+		port,
+		url: `http://${host}:${port}`,
+		isOwner: () => activeHandle !== null,
+		close: async () => {
+			closed = true;
+			clearInterval(standbyTimer);
+			if (activeHandle) {
+				await activeHandle.close();
+				activeHandle = null;
+			}
+		},
+	};
 }

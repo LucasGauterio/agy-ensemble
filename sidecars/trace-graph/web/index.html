@@ -182,6 +182,7 @@
     <div class="header-left">
       <strong>agy-ensemble Mission Control</strong>
       <span class="badge" id="conn-badge">Conectando...</span>
+      <select id="project-select" class="team-select" aria-label="Project Selector" style="display:none;"></select>
       <select id="team-select" class="team-select" aria-label="Team Selector"></select>
       <div class="zoom-tabs" role="tablist" aria-label="Semantic Zoom">
         <button class="zoom-btn" data-zoom="1">Nível 1 (Macro)</button>
@@ -238,6 +239,7 @@
   <script>
     const state = {
       zoom: 2,
+      projectDir: "",
       teamId: "",
       scrubPct: 100,
       selectedSpanId: "",
@@ -272,6 +274,7 @@
     function buildQueryParams() {
       const params = new URLSearchParams();
       params.set("zoom", String(state.zoom));
+      if (state.projectDir) params.set("projectDir", state.projectDir);
       if (state.teamId) params.set("teamId", state.teamId);
       const maxTs = computeMaxTs(state.snapshot);
       if (maxTs) params.set("maxTs", maxTs);
@@ -293,7 +296,8 @@
       state.selectedSpanId = spanId;
       renderNodes(state.snapshot);
       try {
-        const res = await fetch(`/api/trace/node?spanId=${encodeURIComponent(spanId)}`);
+        const projQuery = state.projectDir ? `&projectDir=${encodeURIComponent(state.projectDir)}` : "";
+        const res = await fetch(`/api/trace/node?spanId=${encodeURIComponent(spanId)}${projQuery}`);
         if (!res.ok) return;
         state.nodeDetails = await res.json();
         renderInspector();
@@ -304,8 +308,22 @@
 
     function applySnapshot(snap) {
       state.snapshot = snap;
+      if (!state.projectDir && snap.activeProjectDir) {
+        state.projectDir = snap.activeProjectDir;
+      }
       if (!state.teamId && snap.team?.id) {
         state.teamId = snap.team.id;
+      }
+
+      const projSelect = $("project-select");
+      const projects = snap.projects || [];
+      if (projects.length > 0) {
+        projSelect.style.display = "inline-block";
+        projSelect.innerHTML = projects.map((p) =>
+          `<option value="${escapeHtml(p.projectDir)}" ${p.projectDir === (snap.activeProjectDir || state.projectDir) ? "selected" : ""}>${escapeHtml(p.projectName)}${p.dbExists ? "" : " (sem db)"}</option>`
+        ).join("");
+      } else {
+        projSelect.style.display = "none";
       }
 
       const badge = $("conn-badge");
@@ -475,6 +493,14 @@
         renderInspector();
       });
     }
+
+    $("project-select").addEventListener("change", (e) => {
+      state.projectDir = e.target.value;
+      state.teamId = "";
+      state.selectedSpanId = "";
+      state.nodeDetails = null;
+      fetchSnapshot();
+    });
 
     $("team-select").addEventListener("change", (e) => {
       state.teamId = e.target.value;
