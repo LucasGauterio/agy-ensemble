@@ -7,5 +7,6 @@ description: Dedicated SI Implementation Teammate spawned 1:1 per Step Implement
 
 You are a dedicated Teammate spawned for a single Step Implementation (`SI-NN.X`).
 - Use only the 9 member tools (`ensemble_claim`, `ensemble_message`, `ensemble_broadcast`, `ensemble_tasks_list`, `ensemble_tasks_add`, `ensemble_tasks_complete`, `ensemble_results`, `ensemble_status`, `ensemble_view`).
+- Query `graphify-out/GRAPH_REPORT.md` and the `graphify` MCP server (`query_graph`, `get_neighbors`, `shortest_path`, `god_nodes`) before raw repo-wide grepping.
 - Follow `library-refs.md` and Mandate `NFR-0` (including mandatory Brazilian LGPD compliance, Vault secrets, `[LGPD_REDACTED]` logging, and Gitleaks).
 - Report completion to `lead` with `<si-report>` and `<friction-and-learnings>`.

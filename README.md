@@ -71,17 +71,23 @@ O instalador executa automaticamente:
 2. Instala o plugin como diretório real em `<projeto>/.agents/plugins/agy-ensemble` (habilitando as 30 skills incluindo `/agy-ensemble`, agentes `worker-teammate`/`worker-pentest`, regras LGPD/README, `hooks.json`, sidecar `trace-graph` e `mcp_config.json` sem depender de symlinks/junctions).
 3. Cria `AGENTS.md` inicial caso o projeto ainda não possua um (sem nunca sobrescrever regras já existentes).
 4. Atualiza `.gitignore` com `.ensemble/` e `.agents/plugins/agy-ensemble`.
-5. Registra o servidor MCP e a skill no `~/.gemini/antigravity/` (ou também em `./mcp.json` com `--local-mcp`).
+5. Registra os servidores MCP (`agy-ensemble`, `graphify` e `context7` via `@upstash/context7-mcp`) e a skill no `~/.gemini/antigravity/` (ou também em `./mcp.json` com `--local-mcp`).
+6. Configura automaticamente o **Graphify Knowledge Graph** (`graphify antigravity install`, `graphify hook install` quando o repositório é Git e `graphify update .` em projetos com código existente para gerar `graphify-out/graph.json` e `graphify-out/GRAPH_REPORT.md`).
 
 Principais flags disponíveis:
 - `--target <dir>` (ou argumento posicional): diretório do projeto alvo (padrão: `.`).
 - `--with-templates`: copia `.gitleaks.toml`, `sonar-project.properties`, `docker-compose.infra.yml`, `scripts/test-env/run-phase-gate.sh` e `docs/DESIGN_SYSTEM.md` sem sobrescrever arquivos já existentes.
-- `--local-mcp`: gera/mescla `./mcp.json` na raiz do projeto alvo.
+- `--local-mcp`: gera/mescla `./mcp.json` na raiz do projeto alvo (com `agy-ensemble`, `graphify` e `context7`).
 - `--no-global`: restringe a configuração apenas ao projeto alvo (não altera `~/.gemini/antigravity/`).
 - `--no-update`: reutiliza `~/.agy-ensemble` sem rodar `git pull`.
+- `--no-graphify`: desabilita a configuração automática do Graphify e o registro do MCP `graphify`.
+- `--install-graphify`: instala ou atualiza automaticamente `graphifyy[mcp]` via `uv` ou `pipx`.
+- `--no-context7`: desabilita o registro automático do MCP `context7` (`@upstash/context7-mcp`).
+- `--context7-api-key <key>`: define opcionalmente `CONTEXT7_API_KEY` para maior limite de requisições no Context7.
 - `--source <dir>`: usa um clone local existente em vez de clonar do GitHub.
 - `--dry-run`: simula todas as etapas sem escrever arquivos.
-- `uninstall [dir]`: remove a integração do `agy-ensemble` do projeto sem apagar seu código ou `AGENTS.md`.
+- `graphify [dir]`: executa ou atualiza a integração Graphify (regras Antigravity, git hooks, `graphify update .` e registro MCP) sob demanda.
+- `uninstall [dir]`: remove a integração do `agy-ensemble` (e as entradas `graphify` e `context7` do `mcp.json`) do projeto sem apagar seu código ou `AGENTS.md`.
 
 ---
 
@@ -114,8 +120,11 @@ bun ~/.agy-ensemble/bin/agy-ensemble.mjs trace --port 4141
 bun .agents/plugins/agy-ensemble/bin/agy-ensemble.mjs trace
 ./agy-ensemble.sh trace  # (ou .\agy-ensemble.ps1 trace)
 
-# Inspecionar o status do time, banco SQLite e link da skill:
+# Inspecionar o status do time, banco SQLite, Graphify e link da skill:
 ./agy-ensemble.sh status # (ou .\agy-ensemble.ps1 status)
+
+# Inicializar/atualizar o Knowledge Graph do Graphify, git hooks e MCP:
+./agy-ensemble.sh graphify # (ou .\agy-ensemble.ps1 graphify)
 
 # Rodar a suíte de testes de validação completa:
 ./agy-ensemble.sh verify # (ou .\agy-ensemble.ps1 verify)
@@ -457,10 +466,12 @@ agy-ensemble/
 │   └── runner.ts                          # CLI runner local (install/setup/run/trace/verify/status)
 ├── rules/
 │   ├── AGENTS.md                          # Regras ativas carregadas pelo plugin
+│   ├── graphify-knowledge-graph.md        # Mandato GRAPHIFY-0 (navegação graph-first, trigger: always_on)
 │   └── mandatory-readme-sync.md           # Mandato README-SYNC-0 (trigger: always_on)
 ├── docs/IMPLEMENTATION_AND_VALIDATION.md  # Matriz oficial IMP-00..19 e VAL-00..19
 ├── src/                                   # Módulos TypeScript (Strict Mode, 0 any)
 │   ├── db.ts & schema.ts                  # Adapter SQLite WAL (bun:sqlite / node:sqlite)
+│   ├── graphify-integration.ts            # Integração Graphify (status, god nodes, context pack, sync)
 │   ├── installer.ts                       # API tipada do instalador multi-projeto
 │   ├── runner.ts                          # Runner CLI & gerenciamento de configurações Antigravity
 │   ├── mcp-server.ts                      # Implementação das 15 tools MCP + preserveBranch

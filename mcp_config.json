@@ -10,6 +10,10 @@
         "ENSEMBLE_DB_PATH": ".ensemble/team.db",
         "AGY_ENSEMBLE_DELEGATE_DEFAULT": "true"
       }
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
     }
   }
 }

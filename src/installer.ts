@@ -1,6 +1,9 @@
 export type {
+	Context7SetupResult,
 	EnsureSourceOptions,
 	EnsureSourceResult,
+	GraphifySetupOptions,
+	GraphifySetupResult,
 	LinkResult,
 	McpMergeResult,
 	McpServerEntry,
@@ -12,7 +15,9 @@ export type {
 } from "../scripts/installer-core.mjs";
 
 import {
+	buildContext7McpEntry,
 	buildEnsembleRepo,
+	buildGraphifyMcpEntry,
 	copyOptionalTemplates,
 	createOrUpdatePluginLink,
 	DEFAULT_GITHUB_REPO_URL,
@@ -32,12 +37,15 @@ import {
 	printInstallSummary,
 	removeMcpServerFromFile,
 	resolveMcpRuntime,
+	setupGraphifyForProject,
 	syncProjectPluginDirectory,
 	uninstallFromProject,
 } from "../scripts/installer-core.mjs";
 
 export {
+	buildContext7McpEntry,
 	buildEnsembleRepo,
+	buildGraphifyMcpEntry,
 	copyOptionalTemplates,
 	createOrUpdatePluginLink,
 	DEFAULT_GITHUB_REPO_URL,
@@ -57,6 +65,7 @@ export {
 	printInstallSummary,
 	removeMcpServerFromFile,
 	resolveMcpRuntime,
+	setupGraphifyForProject,
 	syncProjectPluginDirectory,
 	uninstallFromProject,
 };

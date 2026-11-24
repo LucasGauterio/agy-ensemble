@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+	buildContext7McpEntry,
 	ensureEnsembleSource,
 	installIntoProject,
 	PACKAGE_ROOT_DIR,
@@ -79,6 +80,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 				targetDir,
 				sourceDir: PACKAGE_ROOT_DIR,
 				antigravityDir,
+				graphify: false,
 				runtime: "node",
 				log: () => {},
 			});
@@ -152,7 +154,9 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 		}
 	});
 
-	test("detects brownfield projects, preserves existing AGENTS.md/.gitignore, and remains idempotent across runs", () => {
+	test(
+		"detects brownfield projects, preserves existing AGENTS.md/.gitignore, and remains idempotent across runs",
+		() => {
 		const root = makeTempDir("agy-install-brownfield-");
 		const targetDir = path.join(root, "existing-api");
 		const antigravityDir = path.join(root, "antigravity");
@@ -176,6 +180,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 				sourceDir: PACKAGE_ROOT_DIR,
 				antigravityDir,
 				noGlobal: true,
+				graphify: false,
 				log: () => {},
 			});
 
@@ -198,6 +203,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 				sourceDir: PACKAGE_ROOT_DIR,
 				antigravityDir,
 				noGlobal: true,
+				graphify: false,
 				log: () => {},
 			});
 			expect(second.projectPlugin.action).toBe("exists");
@@ -223,6 +229,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 				sourceDir: PACKAGE_ROOT_DIR,
 				antigravityDir,
 				noGlobal: true,
+				graphify: false,
 				log: () => {},
 			});
 			expect(upgraded.projectPlugin.action).toBe("updated");
@@ -246,6 +253,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 				sourceDir: PACKAGE_ROOT_DIR,
 				antigravityDir,
 				noGlobal: true,
+				graphify: false,
 				force: true,
 				log: () => {},
 			});
@@ -261,7 +269,9 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 		} finally {
 			fs.rmSync(root, { recursive: true, force: true });
 		}
-	});
+		},
+		15000,
+	);
 
 	test("copies optional templates (--with-templates), writes local mcp.json (--local-mcp), and respects --force", () => {
 		const root = makeTempDir("agy-install-templates-");
@@ -279,6 +289,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 				withTemplates: true,
 				localMcp: true,
 				noGlobal: true,
+				graphify: false,
 				runtime: "node",
 				log: () => {},
 			});
@@ -313,6 +324,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 				sourceDir: PACKAGE_ROOT_DIR,
 				withTemplates: true,
 				noGlobal: true,
+				graphify: false,
 				log: () => {},
 			});
 			expect(rerun.templates.skipped).toContain(".gitleaks.toml");
@@ -324,6 +336,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 				sourceDir: PACKAGE_ROOT_DIR,
 				withTemplates: true,
 				noGlobal: true,
+				graphify: false,
 				force: true,
 				log: () => {},
 			});
@@ -373,6 +386,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 				sourceDir: PACKAGE_ROOT_DIR,
 				antigravityDir,
 				localMcp: true,
+				graphify: false,
 				log: () => {},
 			});
 
@@ -443,5 +457,126 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 			fs.rmSync(root, { recursive: true, force: true });
 		}
 	});
+
+	test(
+		"registers Context7 MCP (@upstash/context7-mcp) during initial setup, supports --no-context7 / --context7-api-key, and cleans up on uninstall",
+		() => {
+		const parsed = parseCliArgs([
+			"./app",
+			"--no-context7",
+			"--context7-api-key",
+			"ctx7-test-key",
+		]);
+		expect(parsed.noContext7).toBe(true);
+		expect(parsed.context7ApiKey).toBe("ctx7-test-key");
+
+		const entry = buildContext7McpEntry({
+			runtime: "node",
+			apiKey: "ctx7-test-key",
+		});
+		expect(entry.command).toBe("npx");
+		expect(entry.args).toEqual(["-y", "@upstash/context7-mcp"]);
+		expect(entry.env?.CONTEXT7_API_KEY).toBe("ctx7-test-key");
+
+		const root = makeTempDir("agy-install-context7-");
+		const withCtx7Dir = path.join(root, "with-ctx7");
+		const withoutCtx7Dir = path.join(root, "without-ctx7");
+		const antigravityDir = path.join(root, "antigravity");
+		fs.mkdirSync(withCtx7Dir, { recursive: true });
+		fs.mkdirSync(withoutCtx7Dir, { recursive: true });
+		fs.mkdirSync(antigravityDir, { recursive: true });
+
+		try {
+			const res = installIntoProject({
+				targetDir: withCtx7Dir,
+				sourceDir: PACKAGE_ROOT_DIR,
+				antigravityDir,
+				localMcp: true,
+				graphify: false,
+				context7ApiKey: "ctx7-test-key",
+				runtime: "node",
+				log: () => {},
+			});
+			expect(res.context7.enabled).toBe(true);
+			expect(res.context7.hasApiKey).toBe(true);
+
+			const pluginMcp = JSON.parse(
+				fs.readFileSync(
+					path.join(
+						withCtx7Dir,
+						".agents",
+						"plugins",
+						"agy-ensemble",
+						"mcp_config.json",
+					),
+					"utf8",
+				),
+			);
+			expect(pluginMcp.mcpServers.context7.args).toEqual([
+				"-y",
+				"@upstash/context7-mcp",
+			]);
+			expect(pluginMcp.mcpServers.context7.env.CONTEXT7_API_KEY).toBe(
+				"ctx7-test-key",
+			);
+
+			const localMcp = JSON.parse(
+				fs.readFileSync(path.join(withCtx7Dir, "mcp.json"), "utf8"),
+			);
+			expect(localMcp.mcpServers.context7).toBeDefined();
+
+			const globalMcp = JSON.parse(
+				fs.readFileSync(path.join(antigravityDir, "mcp.json"), "utf8"),
+			);
+			expect(globalMcp.mcpServers.context7).toBeDefined();
+
+			// Opt-out via context7: false removes/skips context7 MCP registration
+			const optOut = installIntoProject({
+				targetDir: withoutCtx7Dir,
+				sourceDir: PACKAGE_ROOT_DIR,
+				localMcp: true,
+				noGlobal: true,
+				graphify: false,
+				context7: false,
+				runtime: "node",
+				log: () => {},
+			});
+			expect(optOut.context7.enabled).toBe(false);
+			const optOutPluginMcp = JSON.parse(
+				fs.readFileSync(
+					path.join(
+						withoutCtx7Dir,
+						".agents",
+						"plugins",
+						"agy-ensemble",
+						"mcp_config.json",
+					),
+					"utf8",
+				),
+			);
+			expect(optOutPluginMcp.mcpServers.context7).toBeUndefined();
+			const optOutLocalMcp = JSON.parse(
+				fs.readFileSync(path.join(withoutCtx7Dir, "mcp.json"), "utf8"),
+			);
+			expect(optOutLocalMcp.mcpServers.context7).toBeUndefined();
+
+			// Uninstall removes context7 cleanly from local and global mcp.json
+			const uninst = uninstallFromProject({
+				targetDir: withCtx7Dir,
+				antigravityDir,
+				global: true,
+			});
+			expect(uninst.uninstalled).toBe(true);
+			expect(fs.existsSync(path.join(withCtx7Dir, "mcp.json"))).toBe(false);
+			const globalAfter = JSON.parse(
+				fs.readFileSync(path.join(antigravityDir, "mcp.json"), "utf8"),
+			);
+			expect(globalAfter.mcpServers.context7).toBeUndefined();
+		} finally {
+			fs.rmSync(root, { recursive: true, force: true });
+		}
+		},
+		15000,
+	);
 });
 

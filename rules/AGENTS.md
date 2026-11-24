@@ -9,6 +9,7 @@
 4. **Mandato NFR-0 by Default** (Mandatory Brazilian LGPD Law No. 13.709/2018 compliance, structured JSON logging with Brazilian PII redaction, OWASP zero-trust security, OpenTelemetry, Vault/OpenBao secrets, and 3-layer Gitleaks protection)
 5. **Offensive & Defensive Quality Gates** (Unit + Integration + E2E native test reports, SonarQube/SonarCloud Quality Gate, SAST Semgrep/Trivy, DAST OWASP ZAP/Nuclei, and Red-Team `worker-pentest` Business Logic & LGPD PenTests)
 6. **Live Execution Trace Graph UI & FinOps Engine** (`sidecar://agy-ensemble/trace-graph` with 3-level semantic zoom, real-time SSE, estimated vs. actual `$` cost and duration tracking, and Stage 10 continuous self-learning)
+7. **Graphify Knowledge Graph Integration** (`graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md`, `graphify` MCP server, Antigravity rules, and git hooks wired automatically during initial setup)
 
 ## Non-Negotiable Invariants
 

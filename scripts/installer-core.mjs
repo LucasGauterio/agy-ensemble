@@ -49,6 +49,9 @@ export function getAntigravityHome(override) {
 	return path.join(os.homedir(), ".gemini", "antigravity");
 }
 
+/** @type {Map<string, string | null>} */
+const executableCache = new Map();
+
 /**
  * Check whether an executable exists on PATH (or via bun binary locations).
  *
@@ -56,6 +59,9 @@ export function getAntigravityHome(override) {
  * @returns {string | null}
  */
 export function findExecutable(cmd) {
+	if (executableCache.has(cmd)) {
+		return executableCache.get(cmd) ?? null;
+	}
 	const checkCmd = process.platform === "win32" ? "where" : "which";
 	const res = spawnSync(checkCmd, [cmd], {
 		encoding: "utf8",
@@ -63,8 +69,13 @@ export function findExecutable(cmd) {
 	});
 	if (res.status === 0 && res.stdout) {
 		const firstLine = res.stdout.split(/\r?\n/).find((l) => l.trim().length > 0);
-		if (firstLine) return firstLine.trim();
+		if (firstLine) {
+			const trimmed = firstLine.trim();
+			executableCache.set(cmd, trimmed);
+			return trimmed;
+		}
 	}
+	executableCache.set(cmd, null);
 	return null;
 }
 
@@ -116,6 +127,302 @@ export function findBunExecutable(repoDir) {
 
 	if (onPath) return onPath;
 	return null;
+}
+
+/**
+ * Locate a Graphify CLI executable ("graphify" or "graphify-mcp") on PATH or in ~/.local/bin.
+ *
+ * @param {"graphify" | "graphify-mcp"} cmd
+ * @returns {string | null}
+ */
+export function findGraphifyExecutable(cmd) {
+	const onPath = findExecutable(cmd);
+	if (onPath) return onPath;
+
+	const suffix = process.platform === "win32" ? ".exe" : "";
+	const localBin = path.join(os.homedir(), ".local", "bin", `${cmd}${suffix}`);
+	if (fs.existsSync(localBin)) return localBin;
+
+	return null;
+}
+
+/**
+ * Build a Graphify MCP server entry pointing at <targetDir>/graphify-out/graph.json.
+ * Prefers Graphify's official Antigravity `uv run --with graphifyy --with mcp -m graphify.serve`
+ * invocation when `uv` is available (ensuring `mcp` / `anyio` dependencies are always present),
+ * falling back to `graphify-mcp` otherwise.
+ *
+ * @param {string} targetDir
+ * @param {string | null} [graphifyMcpBin]
+ * @returns {{ command: string; args: string[] }}
+ */
+export function buildGraphifyMcpEntry(targetDir, graphifyMcpBin = null) {
+	const graphPath = path.join(path.resolve(targetDir), "graphify-out", "graph.json");
+	if (graphifyMcpBin) {
+		return {
+			command: graphifyMcpBin,
+			args: [graphPath],
+		};
+	}
+	const uvBin = findExecutable("uv");
+	if (uvBin) {
+		return {
+			command: "uv",
+			args: [
+				"run",
+				"--with",
+				"graphifyy",
+				"--with",
+				"mcp",
+				"-m",
+				"graphify.serve",
+				graphPath,
+			],
+		};
+	}
+	return {
+		command: "graphify-mcp",
+		args: [graphPath],
+	};
+}
+
+/**
+ * Build a Context7 MCP server entry (@upstash/context7-mcp) for live official library documentation lookup.
+ *
+ * @param {{ runtime?: string; apiKey?: string }} [options]
+ * @returns {{ command: string; args: string[]; env?: Record<string, string> }}
+ */
+export function buildContext7McpEntry(options = {}) {
+	const useBunx =
+		typeof options.runtime === "string" &&
+		options.runtime.toLowerCase().includes("bun") &&
+		Boolean(findExecutable("bunx"));
+	const command = useBunx ? "bunx" : "npx";
+	const apiKey = options.apiKey?.trim() || process.env.CONTEXT7_API_KEY?.trim();
+	const entry = {
+		command,
+		args: ["-y", "@upstash/context7-mcp"],
+	};
+	if (apiKey) {
+		entry.env = { CONTEXT7_API_KEY: apiKey };
+	}
+	return entry;
+}
+
+/**
+ * Set up Graphify knowledge graph integration inside targetDir during initial setup:
+ * - Detects graphify / graphify-mcp binaries (optionally installing graphifyy[mcp] via uv/pipx)
+ * - Installs Antigravity Graphify rules/workflows (`graphify antigravity install`)
+ * - Installs Git auto-update hooks (`graphify hook install`) when targetDir is a git repo
+ * - Runs initial deterministic `graphify update .` when source files exist
+ *
+ * @param {string} targetDir
+ * @param {{
+ *   enabled?: boolean;
+ *   installGraphify?: boolean;
+ *   projectMode?: "brownfield" | "greenfield";
+ *   force?: boolean;
+ *   dryRun?: boolean;
+ *   log?: (msg: string) => void;
+ * }} [options]
+ */
+export function setupGraphifyForProject(targetDir, options = {}) {
+	const resolvedTarget = path.resolve(targetDir);
+	const log = options.log ?? ((msg) => console.log(msg));
+
+	if (options.enabled === false) {
+		return {
+			enabled: false,
+			installedCli: false,
+			graphifyBin: null,
+			graphifyMcpBin: null,
+			antigravityConfigured: false,
+			gitHooksInstalled: false,
+			graphBuilt: false,
+			graphPath: path.join(resolvedTarget, "graphify-out", "graph.json"),
+			warnings: [],
+		};
+	}
+
+	const warnings = [];
+	let graphifyBin = findGraphifyExecutable("graphify");
+	let graphifyMcpBin = findGraphifyExecutable("graphify-mcp");
+	let installedCli = false;
+
+	if ((!graphifyBin || !graphifyMcpBin || options.installGraphify) && options.installGraphify) {
+		const uvBin = findExecutable("uv");
+		const pipxBin = findExecutable("pipx");
+		if (options.dryRun) {
+			log('[dry-run] Would install Graphify with MCP support via uv/pipx: uv tool install --force "graphifyy[mcp]"');
+		} else if (uvBin) {
+			log('[agy-ensemble] Installing Graphify with MCP support via uv tool install "graphifyy[mcp]"...');
+			const res = spawnSync(uvBin, ["tool", "install", "--force", "graphifyy[mcp]"], {
+				cwd: resolvedTarget,
+				encoding: "utf8",
+				stdio: ["ignore", "pipe", "pipe"],
+			});
+			if (res.status === 0) {
+				installedCli = true;
+				graphifyBin = findGraphifyExecutable("graphify");
+				graphifyMcpBin = findGraphifyExecutable("graphify-mcp");
+			} else {
+				warnings.push(
+					`Failed to install graphifyy[mcp] via uv: ${(res.stderr || res.stdout || "").trim() || `exit ${res.status}`}`,
+				);
+			}
+		} else if (pipxBin) {
+			log('[agy-ensemble] Installing Graphify with MCP support via pipx install "graphifyy[mcp]"...');
+			const res = spawnSync(pipxBin, ["install", "--force", "graphifyy[mcp]"], {
+				cwd: resolvedTarget,
+				encoding: "utf8",
+				stdio: ["ignore", "pipe", "pipe"],
+			});
+			if (res.status === 0) {
+				installedCli = true;
+				graphifyBin = findGraphifyExecutable("graphify");
+				graphifyMcpBin = findGraphifyExecutable("graphify-mcp");
+			} else {
+				warnings.push(
+					`Failed to install graphifyy[mcp] via pipx: ${(res.stderr || res.stdout || "").trim() || `exit ${res.status}`}`,
+				);
+			}
+		} else {
+			warnings.push(
+				'Neither uv nor pipx found on PATH. Install Graphify manually with: uv tool install "graphifyy[mcp]"',
+			);
+		}
+	}
+
+	if (!graphifyBin) {
+		warnings.push(
+			'Graphify CLI not detected on PATH. Install with: uv tool install "graphifyy[mcp]" (or re-run with --install-graphify).',
+		);
+		return {
+			enabled: true,
+			installedCli,
+			graphifyBin: null,
+			graphifyMcpBin,
+			antigravityConfigured: false,
+			gitHooksInstalled: false,
+			graphBuilt: false,
+			graphPath: path.join(resolvedTarget, "graphify-out", "graph.json"),
+			warnings,
+		};
+	}
+
+	let antigravityConfigured = false;
+	let gitHooksInstalled = false;
+	let graphBuilt = false;
+	const graphPath = path.join(resolvedTarget, "graphify-out", "graph.json");
+
+	if (options.dryRun) {
+		return {
+			enabled: true,
+			installedCli,
+			graphifyBin,
+			graphifyMcpBin,
+			antigravityConfigured: true,
+			gitHooksInstalled: fs.existsSync(path.join(resolvedTarget, ".git")),
+			graphBuilt: options.projectMode === "brownfield",
+			graphPath,
+			warnings,
+		};
+	}
+
+	// 1. Configure Graphify Antigravity rules/workflows in target project (idempotent)
+	const agyRulePath = path.join(resolvedTarget, ".agents", "rules", "graphify.md");
+	const agyWorkflowPath = path.join(
+		resolvedTarget,
+		".agents",
+		"workflows",
+		"graphify.md",
+	);
+	const hasAgyGraphifyFiles =
+		fs.existsSync(agyRulePath) && fs.existsSync(agyWorkflowPath);
+
+	if (hasAgyGraphifyFiles && !options.installGraphify) {
+		antigravityConfigured = true;
+	} else {
+		const agySetupRes = spawnSync(graphifyBin, ["antigravity", "install"], {
+			cwd: resolvedTarget,
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+		if (agySetupRes.status === 0) {
+			antigravityConfigured = true;
+		} else {
+			warnings.push(
+				`graphify antigravity install skipped: ${(agySetupRes.stderr || agySetupRes.stdout || "").trim() || `exit ${agySetupRes.status}`}`,
+			);
+		}
+	}
+
+	// 2. Install Git auto-update hooks when targetDir is a git repository (idempotent)
+	if (fs.existsSync(path.join(resolvedTarget, ".git"))) {
+		const postCommitPath = path.join(
+			resolvedTarget,
+			".git",
+			"hooks",
+			"post-commit",
+		);
+		const alreadyHooked =
+			fs.existsSync(postCommitPath) &&
+			fs.readFileSync(postCommitPath, "utf8").toLowerCase().includes("graphify");
+		if (alreadyHooked && !options.installGraphify) {
+			gitHooksInstalled = true;
+		} else {
+			const hookRes = spawnSync(graphifyBin, ["hook", "install"], {
+				cwd: resolvedTarget,
+				encoding: "utf8",
+				stdio: ["ignore", "pipe", "pipe"],
+			});
+			if (hookRes.status === 0) {
+				gitHooksInstalled = true;
+			} else {
+				warnings.push(
+					`graphify hook install skipped: ${(hookRes.stderr || hookRes.stdout || "").trim() || `exit ${hookRes.status}`}`,
+				);
+			}
+		}
+	}
+
+	// 3. Build initial deterministic AST knowledge graph when code exists
+	const shouldBuildGraph =
+		options.projectMode === "brownfield" ||
+		options.installGraphify ||
+		(!fs.existsSync(graphPath) &&
+			["src", "app", "packages"].some((dir) =>
+				fs.existsSync(path.join(resolvedTarget, dir)),
+			));
+
+	if (shouldBuildGraph && (!fs.existsSync(graphPath) || options.installGraphify)) {
+		const updateArgs = ["update", "."];
+		if (options.force) updateArgs.push("--force");
+		const updateRes = spawnSync(graphifyBin, updateArgs, {
+			cwd: resolvedTarget,
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+		if (updateRes.status === 0 && fs.existsSync(graphPath)) {
+			graphBuilt = true;
+		} else {
+			warnings.push(
+				`graphify update skipped: ${(updateRes.stderr || updateRes.stdout || "").trim() || `exit ${updateRes.status}`}`,
+			);
+		}
+	}
+
+	return {
+		enabled: true,
+		installedCli,
+		graphifyBin,
+		graphifyMcpBin,
+		antigravityConfigured,
+		gitHooksInstalled,
+		graphBuilt,
+		graphPath,
+		warnings,
+	};
 }
 
 /**
@@ -609,6 +916,31 @@ export function syncProjectPluginDirectory(sourceDir, destDir, options = {}) {
 		);
 	}
 
+	if (options.graphify !== false && projectRootDir) {
+		mergeMcpConfigFile(
+			path.join(destDir, "mcp_config.json"),
+			"graphify",
+			buildGraphifyMcpEntry(projectRootDir, options.graphifyMcpBin ?? null),
+			{ dryRun: false },
+		);
+	}
+
+	if (options.context7 === false) {
+		removeMcpServerFromFile(path.join(destDir, "mcp_config.json"), "context7", {
+			dryRun: false,
+		});
+	} else {
+		mergeMcpConfigFile(
+			path.join(destDir, "mcp_config.json"),
+			"context7",
+			buildContext7McpEntry({
+				runtime: options.runtime,
+				apiKey: options.context7ApiKey,
+			}),
+			{ dryRun: false },
+		);
+	}
+
 	fs.writeFileSync(
 		stampPath,
 		`${JSON.stringify({ sourceDir: resolvedSource, headSha, dbPath: expectedDbPath }, null, 2)}\n`,
@@ -751,6 +1083,7 @@ This project is configured with **agy-ensemble** for Google Antigravity.
 3. **Mandato NFR-0 & LGPD Compliance:** Enforce Brazilian LGPD (Law No. 13.709/2018) data mapping (ROPA), PII log redaction (\`[LGPD_REDACTED]\`), secret protection (Vault + Gitleaks), and OpenTelemetry observability by default.
 4. **Strict Delegate Mode (\`delegate: true\`):** Use \`/agy-ensemble "<pedido>"\` to orchestrate parallel \`worker-teammate\` executions in isolated \`Workspace: 'share'\` worktrees with mandatory branch preservation.
 5. **Continuous README Sync (\`README-SYNC-0\`):** Keep \`README.md\` synchronized with delivered phases, endpoints, environment variables, and test commands before merging.
+6. **Graphify Knowledge Graph (\`graphify-out/\`):** Query \`graphify-out/GRAPH_REPORT.md\` and the \`graphify\` MCP server (\`query_graph\`, \`get_neighbors\`, \`shortest_path\`, \`god_nodes\`) before raw file grepping, and run \`graphify update .\` after phase merges.
 `;
 
 	if (!options.dryRun) {
@@ -894,6 +1227,10 @@ export function detectProjectMode(targetDir) {
  *   noGlobal?: boolean;
  *   globalPlugin?: boolean;
  *   noUpdate?: boolean;
+ *   graphify?: boolean;
+ *   installGraphify?: boolean;
+ *   context7?: boolean;
+ *   context7ApiKey?: string;
  *   force?: boolean;
  *   dryRun?: boolean;
  *   log?: (msg: string) => void;
@@ -929,6 +1266,25 @@ export function installIntoProject(options = {}) {
 		},
 	};
 
+	const projectMode = detectProjectMode(targetDir);
+	const graphifyEnabled = options.graphify !== false;
+	const context7Enabled = options.context7 !== false;
+
+	// 0. Graphify Knowledge Graph initial setup (CLI detection, Antigravity rules, git hooks, initial AST graph)
+	const graphifyResult = setupGraphifyForProject(targetDir, {
+		enabled: graphifyEnabled,
+		installGraphify: Boolean(options.installGraphify),
+		projectMode,
+		force: options.force,
+		dryRun: options.dryRun,
+		log,
+	});
+	const graphifyMcpEntry = buildGraphifyMcpEntry(targetDir, null);
+	const context7McpEntry = buildContext7McpEntry({
+		runtime,
+		apiKey: options.context7ApiKey,
+	});
+
 	// 1. Sync real plugin directory into <targetDir>/.agents/plugins/agy-ensemble
 	// (Antigravity's plugin/skill scanner skips Windows junctions/symlinks)
 	const projectPluginLinkPath = path.join(
@@ -940,7 +1296,15 @@ export function installIntoProject(options = {}) {
 	const projectPluginResult = syncProjectPluginDirectory(
 		resolvedSourceDir,
 		projectPluginLinkPath,
-		{ runtime, force: options.force, dryRun: options.dryRun },
+		{
+			runtime,
+			graphify: graphifyEnabled,
+			graphifyMcpBin: null,
+			context7: context7Enabled,
+			context7ApiKey: options.context7ApiKey,
+			force: options.force,
+			dryRun: options.dryRun,
+		},
 	);
 
 	// 2. Ensure starter AGENTS.md if absent
@@ -965,6 +1329,22 @@ export function installIntoProject(options = {}) {
 			mcpServerEntry,
 			{ dryRun: options.dryRun },
 		);
+		if (graphifyEnabled) {
+			mergeMcpConfigFile(
+				path.join(targetDir, "mcp.json"),
+				"graphify",
+				graphifyMcpEntry,
+				{ dryRun: options.dryRun },
+			);
+		}
+		if (context7Enabled) {
+			mergeMcpConfigFile(
+				path.join(targetDir, "mcp.json"),
+				"context7",
+				context7McpEntry,
+				{ dryRun: options.dryRun },
+			);
+		}
 	}
 
 	// 5. Global Antigravity IDE integration (~/.gemini/antigravity) unless --no-global
@@ -980,6 +1360,22 @@ export function installIntoProject(options = {}) {
 			mcpServerEntry,
 			{ dryRun: options.dryRun },
 		);
+		if (graphifyEnabled) {
+			mergeMcpConfigFile(
+				path.join(antigravityHome, "mcp.json"),
+				"graphify",
+				graphifyMcpEntry,
+				{ dryRun: options.dryRun },
+			);
+		}
+		if (context7Enabled) {
+			mergeMcpConfigFile(
+				path.join(antigravityHome, "mcp.json"),
+				"context7",
+				context7McpEntry,
+				{ dryRun: options.dryRun },
+			);
+		}
 		globalSkillResult = createOrUpdatePluginLink(
 			resolvedSourceDir,
 			path.join(antigravityHome, "skills", "agy-ensemble"),
@@ -1003,8 +1399,6 @@ export function installIntoProject(options = {}) {
 			})
 		: { copied: [], skipped: [] };
 
-	const projectMode = detectProjectMode(targetDir);
-
 	return {
 		targetDir,
 		sourceDir: resolvedSourceDir,
@@ -1020,6 +1414,12 @@ export function installIntoProject(options = {}) {
 		globalSkill: globalSkillResult,
 		globalPlugin: globalPluginResult,
 		templates: templatesResult,
+		graphify: graphifyResult,
+		context7: {
+			enabled: context7Enabled,
+			command: context7McpEntry.command,
+			hasApiKey: Boolean(context7McpEntry.env?.CONTEXT7_API_KEY),
+		},
 	};
 }
 
@@ -1067,6 +1467,22 @@ export function uninstallFromProject(options = {}) {
 	) {
 		removed.push("mcp.json (agy-ensemble entry)");
 	}
+	if (
+		removeMcpServerFromFile(localMcpPath, "graphify", {
+			dryRun: options.dryRun,
+			removeEmptyFile: true,
+		})
+	) {
+		removed.push("mcp.json (graphify entry)");
+	}
+	if (
+		removeMcpServerFromFile(localMcpPath, "context7", {
+			dryRun: options.dryRun,
+			removeEmptyFile: true,
+		})
+	) {
+		removed.push("mcp.json (context7 entry)");
+	}
 
 	if (options.global) {
 		const antigravityHome = getAntigravityHome(options.antigravityDir);
@@ -1078,6 +1494,12 @@ export function uninstallFromProject(options = {}) {
 		) {
 			removed.push(globalMcpPath);
 		}
+		removeMcpServerFromFile(globalMcpPath, "graphify", {
+			dryRun: options.dryRun,
+		});
+		removeMcpServerFromFile(globalMcpPath, "context7", {
+			dryRun: options.dryRun,
+		});
 		const globalSkillPath = path.join(antigravityHome, "skills", "agy-ensemble");
 		let hasGlobalSkill = false;
 		try {
@@ -1123,6 +1545,10 @@ export function parseCliArgs(argv, defaults = {}) {
 		global: false,
 		globalPlugin: false,
 		noUpdate: false,
+		noGraphify: false,
+		installGraphify: false,
+		noContext7: false,
+		context7ApiKey: undefined,
 		force: false,
 		dryRun: false,
 	};
@@ -1132,6 +1558,7 @@ export function parseCliArgs(argv, defaults = {}) {
 		"setup",
 		"run",
 		"trace",
+		"graphify",
 		"verify",
 		"status",
 		"uninstall",
@@ -1204,6 +1631,14 @@ export function parseCliArgs(argv, defaults = {}) {
 			result.globalPlugin = true;
 		} else if (arg === "--no-update") {
 			result.noUpdate = true;
+		} else if (arg === "--no-graphify") {
+			result.noGraphify = true;
+		} else if (arg === "--install-graphify") {
+			result.installGraphify = true;
+		} else if (arg === "--no-context7") {
+			result.noContext7 = true;
+		} else if (arg === "--context7-api-key" && i + 1 < argv.length) {
+			result.context7ApiKey = argv[++i];
 		} else if (arg === "--force" || arg === "-f") {
 			result.force = true;
 		} else if (arg === "--dry-run") {
@@ -1237,6 +1672,7 @@ Commands:
   setup              Configure global Antigravity links from current repo
   run                Start the agy-ensemble MCP Server (stdio/JSON-RPC)
   trace              Launch the Mission Control Trace Graph server
+  graphify [dir]     Initialize/update Graphify knowledge graph, hooks & MCP
   verify             Run full verification test suite
   status             Inspect system and active team state
   uninstall [dir]    Remove agy-ensemble integration from [dir]
@@ -1251,6 +1687,10 @@ Install Options:
   --global                 Also link plugin globally in ~/.gemini/config/plugins/
                            (or during uninstall, also unregister global IDE links)
   --no-update              Skip git pull when ~/.agy-ensemble already exists
+  --no-graphify            Skip Graphify knowledge graph setup & MCP registration
+  --install-graphify       Install/upgrade graphifyy[mcp] via uv or pipx
+  --no-context7            Skip Context7 MCP (@upstash/context7-mcp) registration
+  --context7-api-key <key> Optional Context7 API key for higher rate limits
   --source <dir>           Use an existing local agy-ensemble clone instead of GitHub
   --install-dir <dir>      Override ~/.agy-ensemble global clone path
   --antigravity-dir <dir>  Override ~/.gemini/antigravity path
@@ -1288,6 +1728,29 @@ export function printInstallSummary(res, dryRun = false) {
 	if (res.globalSkill) {
 		console.log(
 			` Global IDE Skill:  ${res.globalSkill.path} (${res.globalSkill.action})`,
+		);
+	}
+	if (res.graphify) {
+		if (!res.graphify.enabled) {
+			console.log(" Graphify:          disabled (--no-graphify)");
+		} else {
+			const parts = [
+				res.graphify.graphifyBin ? "CLI detected" : "CLI missing",
+				res.graphify.antigravityConfigured ? "Antigravity rules" : null,
+				res.graphify.gitHooksInstalled ? "git hooks" : null,
+				res.graphify.graphBuilt ? "graph.json built" : null,
+			].filter(Boolean);
+			console.log(` Graphify:          ${parts.join(", ")}`);
+			for (const warning of res.graphify.warnings) {
+				console.log(`   [warning] ${warning}`);
+			}
+		}
+	}
+	if (res.context7) {
+		console.log(
+			res.context7.enabled
+				? ` Context7 MCP:      registered via ${res.context7.command} (@upstash/context7-mcp${res.context7.hasApiKey ? ", API key set" : ""})`
+				: " Context7 MCP:      disabled (--no-context7)",
 		);
 	}
 	if (res.templates.copied.length > 0 || res.templates.skipped.length > 0) {

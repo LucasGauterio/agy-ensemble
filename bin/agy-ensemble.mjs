@@ -6,14 +6,19 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import {
 	PACKAGE_ROOT_DIR,
+	buildGraphifyMcpEntry,
+	detectProjectMode,
 	ensureEnsembleSource,
 	findBunExecutable,
+	findGraphifyExecutable,
 	getAntigravityHome,
 	getDefaultEnsembleHome,
 	installIntoProject,
+	mergeMcpConfigFile,
 	parseCliArgs,
 	printInstallSummary,
 	printInstallerHelp,
+	setupGraphifyForProject,
 	uninstallFromProject,
 } from "../scripts/installer-core.mjs";
 
@@ -78,10 +83,67 @@ async function main() {
 				noGlobal: parsed.noGlobal,
 				globalPlugin: parsed.globalPlugin,
 				noUpdate: parsed.noUpdate,
+				graphify: !parsed.noGraphify,
+				installGraphify: parsed.installGraphify,
+				context7: !parsed.noContext7,
+				context7ApiKey: parsed.context7ApiKey,
 				force: parsed.force,
 				dryRun: parsed.dryRun,
 			});
 			printInstallSummary(res, parsed.dryRun);
+			break;
+		}
+
+		case "graphify": {
+			const targetDir = path.resolve(parsed.targetDir ?? cwd);
+			const projectMode = detectProjectMode(targetDir);
+			const res = setupGraphifyForProject(targetDir, {
+				enabled: true,
+				installGraphify: parsed.installGraphify,
+				projectMode,
+				force: parsed.force,
+				dryRun: parsed.dryRun,
+			});
+			const entry = buildGraphifyMcpEntry(targetDir, res.graphifyMcpBin);
+			const pluginMcpPath = path.join(
+				targetDir,
+				".agents",
+				"plugins",
+				"agy-ensemble",
+				"mcp_config.json",
+			);
+			if (fs.existsSync(path.dirname(pluginMcpPath))) {
+				mergeMcpConfigFile(pluginMcpPath, "graphify", entry, {
+					dryRun: parsed.dryRun,
+				});
+			}
+			if (parsed.localMcp) {
+				mergeMcpConfigFile(path.join(targetDir, "mcp.json"), "graphify", entry, {
+					dryRun: parsed.dryRun,
+				});
+			}
+			if (!parsed.noGlobal) {
+				const antigravityHome = getAntigravityHome(parsed.antigravityDir);
+				mergeMcpConfigFile(
+					path.join(antigravityHome, "mcp.json"),
+					"graphify",
+					entry,
+					{ dryRun: parsed.dryRun },
+				);
+			}
+			console.log("\n--- agy-ensemble Graphify Setup ---");
+			console.log(`Target Project:     ${targetDir}`);
+			console.log(`Graphify CLI:       ${res.graphifyBin ?? "NOT FOUND"}`);
+			console.log(`Graphify MCP:       ${res.graphifyMcpBin ?? "NOT FOUND"}`);
+			console.log(`Antigravity Rules:  ${res.antigravityConfigured ? "YES" : "NO"}`);
+			console.log(`Git Hooks:          ${res.gitHooksInstalled ? "YES" : "NO"}`);
+			console.log(
+				`Knowledge Graph:    ${fs.existsSync(res.graphPath) ? res.graphPath : "not built yet"}`,
+			);
+			for (const warning of res.warnings) {
+				console.log(`Warning:            ${warning}`);
+			}
+			console.log("");
 			break;
 		}
 
@@ -155,7 +217,13 @@ async function main() {
 			console.log(
 				`Global Repo:       ${ensembleHome} (${fs.existsSync(ensembleHome) ? "present" : "not cloned"})`,
 			);
-			console.log(`Antigravity Home:  ${antigravityHome}\n`);
+			console.log(`Antigravity Home:  ${antigravityHome}`);
+			const graphifyBin = findGraphifyExecutable("graphify");
+			const graphPath = path.join(targetDir, "graphify-out", "graph.json");
+			console.log(`Graphify CLI:      ${graphifyBin ? "YES" : "NO"}`);
+			console.log(
+				`Graphify Graph:    ${fs.existsSync(graphPath) ? "YES" : "NO"}\n`,
+			);
 			break;
 		}
 

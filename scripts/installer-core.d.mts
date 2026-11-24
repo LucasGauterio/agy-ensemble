@@ -34,6 +34,27 @@ export interface LinkResult {
 	action: "linked" | "updated" | "exists" | "copied";
 }
 
+export interface GraphifySetupOptions {
+	enabled?: boolean;
+	installGraphify?: boolean;
+	projectMode?: "brownfield" | "greenfield";
+	force?: boolean;
+	dryRun?: boolean;
+	log?: (msg: string) => void;
+}
+
+export interface GraphifySetupResult {
+	enabled: boolean;
+	installedCli: boolean;
+	graphifyBin: string | null;
+	graphifyMcpBin: string | null;
+	antigravityConfigured: boolean;
+	gitHooksInstalled: boolean;
+	graphBuilt: boolean;
+	graphPath: string;
+	warnings: string[];
+}
+
 export interface ProjectInstallOptions {
 	targetDir?: string;
 	ensembleHome?: string;
@@ -46,9 +67,19 @@ export interface ProjectInstallOptions {
 	noGlobal?: boolean;
 	globalPlugin?: boolean;
 	noUpdate?: boolean;
+	graphify?: boolean;
+	installGraphify?: boolean;
+	context7?: boolean;
+	context7ApiKey?: string;
 	force?: boolean;
 	dryRun?: boolean;
 	log?: (msg: string) => void;
+}
+
+export interface Context7SetupResult {
+	enabled: boolean;
+	command: string;
+	hasApiKey: boolean;
 }
 
 export interface ProjectInstallResult {
@@ -66,6 +97,8 @@ export interface ProjectInstallResult {
 	globalSkill: LinkResult | null;
 	globalPlugin: LinkResult | null;
 	templates: { copied: string[]; skipped: string[] };
+	graphify: GraphifySetupResult;
+	context7: Context7SetupResult;
 }
 
 export interface ProjectUninstallOptions {
@@ -87,6 +120,7 @@ export interface ParsedCliArgs {
 		| "setup"
 		| "run"
 		| "trace"
+		| "graphify"
 		| "verify"
 		| "status"
 		| "uninstall"
@@ -104,6 +138,10 @@ export interface ParsedCliArgs {
 	global: boolean;
 	globalPlugin: boolean;
 	noUpdate: boolean;
+	noGraphify: boolean;
+	installGraphify: boolean;
+	noContext7: boolean;
+	context7ApiKey?: string;
 	force: boolean;
 	dryRun: boolean;
 }
@@ -112,6 +150,21 @@ export function getDefaultEnsembleHome(override?: string): string;
 export function getAntigravityHome(override?: string): string;
 export function findExecutable(cmd: string): string | null;
 export function findBunExecutable(repoDir?: string): string | null;
+export function findGraphifyExecutable(
+	cmd: "graphify" | "graphify-mcp",
+): string | null;
+export function buildGraphifyMcpEntry(
+	targetDir: string,
+	graphifyMcpBin?: string | null,
+): McpServerEntry;
+export function buildContext7McpEntry(options?: {
+	runtime?: string;
+	apiKey?: string;
+}): McpServerEntry;
+export function setupGraphifyForProject(
+	targetDir: string,
+	options?: GraphifySetupOptions,
+): GraphifySetupResult;
 export function resolveMcpRuntime(
 	preferred?: "bun" | "node",
 	repoDir?: string,

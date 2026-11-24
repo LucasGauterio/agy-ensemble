@@ -11,8 +11,9 @@ When invoked on any project or request, the Lead Agent (Maestro) executes the un
 
 ### Mandatory Pipeline Stages
 
-1. **Etapa 0.0 — Gate Bloqueante de Sincronia Codebase ↔ Documentação e Bootstrap Brownfield (`src/brownfield-gate.ts`):**
+1. **Etapa 0.0 — Gate Bloqueante de Sincronia Codebase ↔ Documentação, Bootstrap Brownfield & Graphify (`src/brownfield-gate.ts`, `src/graphify-integration.ts`):**
    - If the project already contains implemented code (`src/`, `app/`, `packages/`), inspect whether all workflow artifacts exist (`AGENTS.md`, `CLAUDE.md`, `CONTEXT.md`, `docs/project-plan.md`, `docs/PRD.md`, `docs/RFC.md`, `docs/FDD.md`, `docs/DESIGN_SYSTEM.md`, `docs/adrs/`, `docs/phases/phase-01..K/{phase-*.md, progress.md}`, `docs/TRACKER.md`, `docs/VALIDATION.md`) and have `0 drift` with the codebase.
+   - Ensure the **Graphify Knowledge Graph** (`graphify-out/graph.json` and `graphify-out/GRAPH_REPORT.md`) is initialized via `syncProjectGraphify` / `graphify update .` and query Graphify MCP (`god_nodes`, `query_graph`, `get_neighbors`) during reverse analysis and `SI Context Pack` assembly.
    - **Hard Rule:** Never start new work if documentation is missing or out of sync with the codebase. Run `bootstrapAndSyncBrownfieldProject` (reverse codebase analysis + retroactive planning + progress/tracker population) first until `driftCount === 0`.
 
 2. **Etapa 1.0 — Entrevista Iterativa de Presunções & Síntese da `Requisição Consolidada Oficial` (`src/interview-engine.ts`):**

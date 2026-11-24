@@ -3,11 +3,16 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createDb } from "./db";
+import { findGraphifyExecutable } from "./graphify-integration";
 import {
+	buildContext7McpEntry,
+	buildGraphifyMcpEntry,
+	detectProjectMode,
 	installIntoProject,
 	mergeMcpConfigFile,
 	printInstallSummary,
 	removeMcpServerFromFile,
+	setupGraphifyForProject,
 	uninstallFromProject,
 } from "./installer";
 import { startTraceGraphServer } from "./trace-graph-server";
@@ -18,6 +23,7 @@ export interface RunnerOptions {
 		| "setup"
 		| "run"
 		| "trace"
+		| "graphify"
 		| "verify"
 		| "status"
 		| "uninstall"
@@ -34,6 +40,10 @@ export interface RunnerOptions {
 	noGlobal?: boolean;
 	globalPlugin?: boolean;
 	noUpdate?: boolean;
+	noGraphify?: boolean;
+	installGraphify?: boolean;
+	noContext7?: boolean;
+	context7ApiKey?: string;
 	force?: boolean;
 }
 
@@ -91,6 +101,9 @@ export function parseArgs(argv: string[]): RunnerOptions {
 		} else if (arg === "trace" || arg === "--trace") {
 			options.command = "trace";
 			explicitCommand = true;
+		} else if (arg === "graphify" || arg === "--graphify") {
+			options.command = "graphify";
+			explicitCommand = true;
 		} else if (arg === "verify" || arg === "--verify" || arg === "test") {
 			options.command = "verify";
 			explicitCommand = true;
@@ -132,6 +145,14 @@ export function parseArgs(argv: string[]): RunnerOptions {
 			options.globalPlugin = true;
 		} else if (arg === "--no-update") {
 			options.noUpdate = true;
+		} else if (arg === "--no-graphify") {
+			options.noGraphify = true;
+		} else if (arg === "--install-graphify") {
+			options.installGraphify = true;
+		} else if (arg === "--no-context7") {
+			options.noContext7 = true;
+		} else if (arg === "--context7-api-key" && i + 1 < argv.length) {
+			options.context7ApiKey = argv[++i];
 		} else if (arg === "--force" || arg === "-f") {
 			options.force = true;
 		} else if (arg === "--runtime" && i + 1 < argv.length) {
@@ -359,6 +380,7 @@ Commands:
   setup          Install dependencies, build bundles, link skill & register MCP
   run            Start the agy-ensemble MCP Server (stdio/JSON-RPC)
   trace          Launch the visual Mission Control Trace Graph server
+  graphify [dir] Initialize/update Graphify knowledge graph, hooks & MCP
   verify         Execute full verification test suite
   status         Inspect active team state and Antigravity configuration
   uninstall      Remove skill link and unregister from mcp.json (or project with --target)
@@ -370,6 +392,10 @@ Options:
   --local-mcp                Write/merge ./mcp.json in the target project
   --no-global                Skip updating ~/.gemini/antigravity/ during install
   --no-update                Skip git pull when ~/.agy-ensemble already exists
+  --no-graphify              Skip Graphify knowledge graph setup & MCP registration
+  --install-graphify         Install/upgrade graphifyy[mcp] via uv or pipx
+  --no-context7              Skip Context7 MCP (@upstash/context7-mcp) registration
+  --context7-api-key <key>   Optional Context7 API key for higher rate limits
   --source <dir>             Use local agy-ensemble clone instead of GitHub
   --port <number>            Port for trace server (default: 4141)
   --antigravity-dir <path>   Override default ~/.gemini/antigravity path
@@ -411,10 +437,39 @@ export async function main(
 				noGlobal: options.noGlobal,
 				globalPlugin: options.globalPlugin,
 				noUpdate: options.noUpdate,
+				graphify: !options.noGraphify,
+				installGraphify: options.installGraphify,
+				context7: !options.noContext7,
+				context7ApiKey: options.context7ApiKey,
 				force: options.force,
 				dryRun: options.dryRun,
 			});
 			printInstallSummary(res, options.dryRun);
+			break;
+		}
+
+		case "graphify": {
+			const targetRoot = path.resolve(options.targetDir ?? projectDir);
+			const projectMode = detectProjectMode(targetRoot);
+			const graphRes = setupGraphifyForProject(targetRoot, {
+				enabled: true,
+				installGraphify: Boolean(options.installGraphify),
+				projectMode,
+				force: options.force,
+				dryRun: options.dryRun,
+			});
+			const entry = buildGraphifyMcpEntry(targetRoot, graphRes.graphifyMcpBin);
+			if (!options.noGlobal) {
+				mergeMcpConfigFile(
+					path.join(antigravityHome, "mcp.json"),
+					"graphify",
+					entry,
+					{ dryRun: options.dryRun },
+				);
+			}
+			console.log(
+				`[agy-ensemble] Graphify setup for ${targetRoot}: CLI=${graphRes.graphifyBin ? "YES" : "NO"}, Antigravity=${graphRes.antigravityConfigured ? "YES" : "NO"}, Hooks=${graphRes.gitHooksInstalled ? "YES" : "NO"}, Graph=${fs.existsSync(graphRes.graphPath) ? "YES" : "NO"}`,
+			);
 			break;
 		}
 
@@ -454,8 +509,8 @@ export async function main(
 				`      Skill path: ${skillResult.skillPath} (${skillResult.action})${options.dryRun ? " [dry-run]" : ""}`,
 			);
 
-			// 4. Register MCP Server
-			console.log("[4/5] Registering agy-ensemble MCP Server in mcp.json...");
+			// 4. Register MCP Server (agy-ensemble + Graphify)
+			console.log("[4/5] Registering agy-ensemble & Graphify MCP Servers in mcp.json...");
 			const mcpResult = registerMcpServer(projectDir, antigravityHome, {
 				runtime: options.runtime ?? runtimeInfo.runtime,
 				dryRun: options.dryRun,
@@ -463,6 +518,39 @@ export async function main(
 			console.log(
 				`      Config path: ${mcpResult.mcpJsonPath}${options.dryRun ? " [dry-run]" : ""}`,
 			);
+			if (!options.noGraphify) {
+				const graphRes = setupGraphifyForProject(projectDir, {
+					enabled: true,
+					installGraphify: Boolean(options.installGraphify),
+					projectMode: detectProjectMode(projectDir),
+					force: options.force,
+					dryRun: options.dryRun,
+				});
+				mergeMcpConfigFile(
+					path.join(antigravityHome, "mcp.json"),
+					"graphify",
+					buildGraphifyMcpEntry(projectDir, graphRes.graphifyMcpBin),
+					{ dryRun: options.dryRun },
+				);
+				console.log(
+					`      Graphify:    CLI=${graphRes.graphifyBin ? "YES" : "NO"}, Antigravity=${graphRes.antigravityConfigured ? "YES" : "NO"}, Hooks=${graphRes.gitHooksInstalled ? "YES" : "NO"}`,
+				);
+			}
+			if (!options.noContext7) {
+				const ctx7Entry = buildContext7McpEntry({
+					runtime: options.runtime ?? runtimeInfo.runtime,
+					apiKey: options.context7ApiKey,
+				});
+				mergeMcpConfigFile(
+					path.join(antigravityHome, "mcp.json"),
+					"context7",
+					ctx7Entry,
+					{ dryRun: options.dryRun },
+				);
+				console.log(
+					`      Context7:    registered via ${ctx7Entry.command} (@upstash/context7-mcp)${options.dryRun ? " [dry-run]" : ""}`,
+				);
+			}
 
 			// 5. Verify
 			console.log("[5/5] Running verification sanity checks...");
@@ -561,10 +649,12 @@ export async function main(
 			const skillLinked = fs.existsSync(skillLinkPath);
 			const mcpJsonPath = path.join(antigravityHome, "mcp.json");
 			let mcpConfigured = false;
+			let context7Configured = false;
 			if (fs.existsSync(mcpJsonPath)) {
 				try {
 					const cfg = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
 					mcpConfigured = Boolean(cfg.mcpServers?.["agy-ensemble"]);
+					context7Configured = Boolean(cfg.mcpServers?.context7);
 				} catch {
 					// ignore
 				}
@@ -577,12 +667,19 @@ export async function main(
 			console.log(`Antigravity Home:  ${antigravityHome}`);
 			console.log(`Skill Linked:      ${skillLinked ? "YES" : "NO"}`);
 			console.log(`MCP Registered:    ${mcpConfigured ? "YES" : "NO"}`);
+			console.log(`Context7 MCP:      ${context7Configured ? "YES" : "NO"}`);
 			console.log(
 				`Database (.db):    ${status.dbExists ? "Active" : "Not created yet"}`,
 			);
 			console.log(`Active Teams:      ${status.teamCount}`);
 			console.log(`Active Members:    ${status.activeMembers}`);
-			console.log(`Pending Tasks:     ${status.pendingTasks}\n`);
+			console.log(`Pending Tasks:     ${status.pendingTasks}`);
+			const graphifyCli = findGraphifyExecutable("graphify");
+			const graphExists = fs.existsSync(
+				path.join(projectDir, "graphify-out", "graph.json"),
+			);
+			console.log(`Graphify CLI:      ${graphifyCli ? "YES" : "NO"}`);
+			console.log(`Graphify Graph:    ${graphExists ? "YES" : "NO"}\n`);
 			break;
 		}
 
