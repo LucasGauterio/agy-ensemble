@@ -52,6 +52,7 @@ números apurados.
 - [ ] ≥ 80% dos itens dos documentos têm linha.
 - [ ] ≥ 70% das linhas: Fonte = SPECIFICATION / INTERVIEW INPUT com `[hh:mm] Nome` válido.
 - [ ] ≥ 5 linhas: Fonte = CODIGO com caminho real.
+- [ ] 100% dos arquivos de código fonte em `src/**` e arquivos de teste em `tests/**` estão mapeados na tabela ou na matriz de código (`TRACKER-SYNC-0`), garantindo `untrackedFiles === 0`.
 - [ ] Todo timestamp existe na `SPECIFICATION / INTERVIEW INPUT.md`; todo caminho existe no repo.
 - [ ] **Toda** célula `Documento` e `Localização` é link relativo `[texto](href)`; nenhum
       `href` quebrado (conferir com um script que testa cada caminho).

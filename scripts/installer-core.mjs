@@ -1144,6 +1144,7 @@ This project is configured with **agy-ensemble** for Google Antigravity.
 5. **Strict Delegate Mode (\`delegate: true\`):** Use \`/agy-ensemble "<pedido>"\` to orchestrate parallel \`worker-teammate\` executions in isolated \`Workspace: 'share'\` worktrees with mandatory branch preservation.
 6. **Continuous README Sync (\`README-SYNC-0\`):** Keep \`README.md\` synchronized with delivered phases, endpoints, environment variables, and test commands before merging.
 7. **Graphify Knowledge Graph (\`graphify-out/\`):** Query \`graphify-out/GRAPH_REPORT.md\` and the \`graphify\` MCP server (\`query_graph\`, \`get_neighbors\`, \`shortest_path\`, \`god_nodes\`) before raw file grepping, and run \`graphify update .\` after phase merges.
+8. **Bidirectional Code Traceability (\`TRACKER-SYNC-0\`):** \`docs/TRACKER.md\` MUST explicitly map 100% of all implementation files in \`src/**\` and test files in \`tests/**\` with \`0 untracked files\` before merge or release.
 `;
 
 	if (!options.dryRun) {

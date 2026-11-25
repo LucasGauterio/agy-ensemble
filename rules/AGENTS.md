@@ -10,6 +10,7 @@
 5. **Offensive & Defensive Quality Gates & Mandatory Security Suite** (Mandatory SAST Semgrep/Trivy, DAST OWASP ZAP/Nuclei, and PenTest Vault/Runner docker containers provisioned and started at setup on every project regardless of brief wording or LGPD concerns — security first; Unit + Integration + E2E native test reports, SonarQube Quality Gate, and Red-Team `worker-pentest` Business Logic PenTests)
 6. **Live Execution Trace Graph UI & FinOps Engine** (`sidecar://agy-ensemble/trace-graph` with 3-level semantic zoom, real-time SSE, estimated vs. actual `$` cost and duration tracking, and Stage 10 continuous self-learning)
 7. **Graphify Knowledge Graph Integration** (`graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md`, `graphify` MCP server, Antigravity rules, and git hooks wired automatically during initial setup)
+8. **Bidirectional Code Traceability Engine (`TRACKER-SYNC-0`)** (Every implemented file in `src/**` and test file in `tests/**` is bidirectionally mapped in `docs/TRACKER.md` linking rules ↔ features ↔ code references with `0 untracked files`)
 
 ## Non-Negotiable Invariants
 
@@ -20,4 +21,5 @@
 5. **Mandatory Security Suite Containers at Setup:** Setup on every project (`agy-ensemble setup` / `installIntoProject`) MUST provision `docker-compose.security.yml` and start the SAST (Semgrep, Trivy), DAST (OWASP ZAP, Nuclei), and PenTest (Vault, Pentest Runner) containers automatically if Docker is active. Brief wording, user prompt phrasing, or LGPD mandates must never disable or bypass this security suite — security first.
 6. **Mandatory Branch Preservation:** Every code path that shuts down or aborts a Teammate session MUST call `preserveBranch()` (`ensemble/preserved/{team}/{name}`) first.
 7. **Code Standards:** TypeScript strict mode, zero `any` types (`noExplicitAny: error`), JSDoc on every exported function, TDD Red/Green/Refactor workflow.
+8. **Bidirectional Code-Level Traceability (`TRACKER-SYNC-0`):** `docs/TRACKER.md` MUST explicitly map 100% of all implementation files in `src/**` (routes, components, libs, workers, schemas, models) and test files in `tests/**` to their corresponding business rules and features. An implementation is incomplete and blocked from final merge if any source file is absent from `docs/TRACKER.md` (`untrackedFiles > 0`).
 

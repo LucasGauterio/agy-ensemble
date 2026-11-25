@@ -14,7 +14,7 @@ When invoked on any project or request, the Lead Agent (Maestro) executes the un
 1. **Etapa 0.0 — Gate Bloqueante de Sincronia Codebase ↔ Documentação, Bootstrap Brownfield & Graphify (`src/brownfield-gate.ts`, `src/graphify-integration.ts`):**
    - If the project already contains implemented code (`src/`, `app/`, `packages/`), inspect whether all workflow artifacts exist (`AGENTS.md`, `CLAUDE.md`, `CONTEXT.md`, `docs/project-plan.md`, `docs/PRD.md`, `docs/RFC.md`, `docs/FDD.md`, `docs/DESIGN_SYSTEM.md`, `docs/adrs/`, `docs/phases/phase-01..K/{phase-*.md, progress.md}`, `docs/TRACKER.md`, `docs/VALIDATION.md`) and have `0 drift` with the codebase.
    - Ensure the **Graphify Knowledge Graph** (`graphify-out/graph.json` and `graphify-out/GRAPH_REPORT.md`) is initialized via `syncProjectGraphify` / `graphify update .` and query Graphify MCP (`god_nodes`, `query_graph`, `get_neighbors`) during reverse analysis and `SI Context Pack` assembly.
-   - **Hard Rule:** Never start new work if documentation is missing or out of sync with the codebase. Run `bootstrapAndSyncBrownfieldProject` (reverse codebase analysis + retroactive planning + progress/tracker population) first until `driftCount === 0`.
+   - **Hard Rule:** Never start new work if documentation is missing or out of sync with the codebase. In particular, `docs/TRACKER.md` MUST explicitly map 100% of all implementation files in `src/**` and test files in `tests/**` (guaranteeing `untrackedFiles === 0`). Run `bootstrapAndSyncBrownfieldProject` (reverse codebase analysis + retroactive planning + progress/tracker population) first until `driftCount === 0`.
 
 2. **Etapa 1.0 — Entrevista Iterativa de Presunções & Síntese da `Requisição Consolidada Oficial` (`src/interview-engine.ts`):**
    - Identify all open assumptions (`detectOpenAssumptions`).
@@ -42,11 +42,11 @@ When invoked on any project or request, the Lead Agent (Maestro) executes the un
 
 7. **Etapa 8 — Execução Multi-Agente em Ondas no DAG (`ensembleImportPhasePlan` + `1 Fresh Spawn por SI`):**
    - Import the phase DAG (`ensembleImportPhasePlan`, checking `File-Touch Disjointness`).
-   - For each unblocked `SI-NN.X`, provision isolated multi-tenant credentials and Vault token (`TenantProvisioner.provisionTenant`), spawn a fresh Teammate in `Workspace: 'share'` (`ensembleSpawn`), audit its `<si-report>` and diff (`auditDiffForLgpdAndSecrets`), preserve its branch and shut down (`ensembleShutdown`), and squash-merge (`ensembleMerge`).
+   - For each unblocked `SI-NN.X`, provision isolated multi-tenant credentials and Vault token (`TenantProvisioner.provisionTenant`), spawn a fresh Teammate in `Workspace: 'share'` (`ensembleSpawn`), audit its `<si-report>` and diff (`auditDiffForLgpdAndSecrets`), preserve its branch and shut down (`ensembleShutdown`), squash-merge (`ensembleMerge`), and register all new/modified source and test files in `docs/TRACKER.md`.
 
 8. **Etapa 9 — Quality Gate Final (`SonarQube` + Native Test Reports + `SAST/DAST/PenTests`) & Tracker Sync:**
    - Verify `evaluateCombinedQualityGate` (JUnit XML, CTRF JSON, LCOV `>= 80%`, `0 skipped`, Sonar Rating `A`) and `evaluateOffensiveDefensiveSecurityGate` (Semgrep, Trivy, OWASP ZAP/Nuclei, and `worker-pentest-nn` testing BOLA/IDOR, Race Conditions, and LGPD post-anonymization zero residue).
-   - Update `docs/TRACKER.md` and `docs/VALIDATION.md`.
+   - Update `docs/TRACKER.md` (verifying 100% of all files in `src/**` and `tests/**` are mapped with `0 untracked files`) and `docs/VALIDATION.md`.
 
 9. **Etapa 10 — Retrospectiva Autônoma, Fechamento FinOps (`Est. vs Real`) & Auto-Evolução (`src/learning-loop.ts`):**
    - Report final `Actual Cost $ & Time` vs `Estimated Cost $ & Time` (`calculatePhaseFinOpsSummary`) and recalibrate (`updateCostTimeCalibration`).

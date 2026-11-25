@@ -216,6 +216,11 @@ npm test
 		`# Documentation & Codebase Sync Validation\n\n- **Status:** CLEAN\n- **Drift Count:** 0\n- **Tracked Files:** ${scannedSourceFiles.length}\n`,
 	);
 
+	ensureFile(
+		"docs/learnings/KNOWLEDGE_BASE.md",
+		`# Knowledge Base & Architectural Learnings — ${options.projectName}\n\nBaseline architectural patterns, decisions, and technical learnings reverse-engineered during Etapa 0.0.\n`,
+	);
+
 	const postCheck = evaluateBrownfieldGate(projectDir);
 	return {
 		initialized: true,
