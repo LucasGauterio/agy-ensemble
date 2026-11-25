@@ -135,6 +135,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 			);
 			expect(gitignoreContent).toContain(".ensemble/");
 			expect(gitignoreContent).toContain(".agents/plugins/agy-ensemble");
+			expect(gitignoreContent).toContain("graphify-out/");
 
 			// Local ./mcp.json is not created unless --local-mcp
 			expect(res.localMcp).toBeNull();
@@ -194,6 +195,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 			expect(first.gitignore.addedEntries).toEqual([
 				".ensemble/",
 				".agents/plugins/agy-ensemble",
+				"graphify-out/",
 			]);
 			expect(first.globalMcp).toBeNull();
 			expect(fs.existsSync(path.join(antigravityDir, "mcp.json"))).toBe(false);

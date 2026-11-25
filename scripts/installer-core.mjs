@@ -412,6 +412,11 @@ export function setupGraphifyForProject(targetDir, options = {}) {
 		}
 	}
 
+	// 4. Ensure graphify-out/ is ignored in target .gitignore
+	ensureProjectGitignore(resolvedTarget, ["graphify-out/"], {
+		dryRun: options.dryRun,
+	});
+
 	return {
 		enabled: true,
 		installedCli,
@@ -1082,7 +1087,11 @@ function linkOrCopyPlugin(resolvedSource, linkPath) {
  */
 export function ensureProjectGitignore(
 	targetDir,
-	requiredEntries = [".ensemble/", ".agents/plugins/agy-ensemble"],
+	requiredEntries = [
+		".ensemble/",
+		".agents/plugins/agy-ensemble",
+		"graphify-out/",
+	],
 	options = {},
 ) {
 	const gitignorePath = path.join(targetDir, ".gitignore");
@@ -1584,10 +1593,14 @@ export function installIntoProject(options = {}) {
 		dryRun: options.dryRun,
 	});
 
-	// 3. Ensure .gitignore ignores .ensemble/ and .agents/plugins/agy-ensemble
+	// 3. Ensure .gitignore ignores .ensemble/, .agents/plugins/agy-ensemble, and graphify-out/
 	const gitignoreResult = ensureProjectGitignore(
 		targetDir,
-		[".ensemble/", ".agents/plugins/agy-ensemble"],
+		[
+			".ensemble/",
+			".agents/plugins/agy-ensemble",
+			"graphify-out/",
+		],
 		{ dryRun: options.dryRun },
 	);
 

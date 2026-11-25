@@ -70,7 +70,7 @@ O instalador executa automaticamente:
 1. Clona/atualiza a versão mais recente do repositório `LucasGauterio/agy-ensemble` em `~/.agy-ensemble`, instala dependências e compila `dist/`.
 2. Instala o plugin como diretório real em `<projeto>/.agents/plugins/agy-ensemble` (habilitando as 30 skills incluindo `/agy-ensemble`, agentes `worker-teammate`/`worker-pentest`, regras LGPD/README, `hooks.json`, sidecar `trace-graph` e `mcp_config.json` sem depender de symlinks/junctions).
 3. Cria `AGENTS.md` inicial caso o projeto ainda não possua um (sem nunca sobrescrever regras já existentes).
-4. Atualiza `.gitignore` com `.ensemble/` e `.agents/plugins/agy-ensemble`.
+4. Atualiza `.gitignore` com `.ensemble/`, `.agents/plugins/agy-ensemble` e `graphify-out/`.
 5. Registra os servidores MCP (`agy-ensemble`, `graphify` e `context7` via `@upstash/context7-mcp`) e a skill no `~/.gemini/antigravity/` (ou também em `./mcp.json` com `--local-mcp`).
 6. Configura automaticamente o **Graphify Knowledge Graph** (`graphify antigravity install`, `graphify hook install` quando o repositório é Git e `graphify update .` em projetos com código existente para gerar `graphify-out/graph.json` e `graphify-out/GRAPH_REPORT.md`).
 
