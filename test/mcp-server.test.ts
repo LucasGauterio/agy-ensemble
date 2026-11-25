@@ -318,19 +318,13 @@ describe("IMP-01 / VAL-01: agy-ensemble SQLite WAL & 15 MCP Tools", () => {
 		expect(importRes?.result).toBeDefined();
 
 		const l1 = db
-			.query(
-				"SELECT * FROM trace_nodes WHERE team_id = ? AND zoom_level = 1",
-			)
+			.query("SELECT * FROM trace_nodes WHERE team_id = ? AND zoom_level = 1")
 			.all(createdTeam.id) as Array<{ label: string }>;
 		const l2 = db
-			.query(
-				"SELECT * FROM trace_nodes WHERE team_id = ? AND zoom_level = 2",
-			)
+			.query("SELECT * FROM trace_nodes WHERE team_id = ? AND zoom_level = 2")
 			.all(createdTeam.id) as Array<{ si_id: string }>;
 		const l3 = db
-			.query(
-				"SELECT * FROM trace_nodes WHERE team_id = ? AND zoom_level = 3",
-			)
+			.query("SELECT * FROM trace_nodes WHERE team_id = ? AND zoom_level = 3")
 			.all(createdTeam.id) as Array<{ label: string }>;
 
 		expect(l1.length).toBe(1);

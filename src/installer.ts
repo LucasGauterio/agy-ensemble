@@ -12,6 +12,8 @@ export type {
 	ProjectInstallResult,
 	ProjectUninstallOptions,
 	ProjectUninstallResult,
+	SecuritySuiteSetupOptions,
+	SecuritySuiteSetupResult,
 } from "../scripts/installer-core.mjs";
 
 import {
@@ -30,6 +32,7 @@ import {
 	getAntigravityHome as getInstallerAntigravityHome,
 	getDefaultEnsembleHome,
 	installIntoProject,
+	isDockerAvailable,
 	mergeMcpConfigFile,
 	PACKAGE_ROOT_DIR,
 	parseCliArgs,
@@ -38,6 +41,7 @@ import {
 	removeMcpServerFromFile,
 	resolveMcpRuntime,
 	setupGraphifyForProject,
+	setupSecuritySuiteForProject,
 	syncProjectPluginDirectory,
 	uninstallFromProject,
 } from "../scripts/installer-core.mjs";
@@ -58,6 +62,7 @@ export {
 	getDefaultEnsembleHome,
 	getInstallerAntigravityHome,
 	installIntoProject,
+	isDockerAvailable,
 	mergeMcpConfigFile,
 	PACKAGE_ROOT_DIR,
 	parseCliArgs,
@@ -66,7 +71,7 @@ export {
 	removeMcpServerFromFile,
 	resolveMcpRuntime,
 	setupGraphifyForProject,
+	setupSecuritySuiteForProject,
 	syncProjectPluginDirectory,
 	uninstallFromProject,
 };
-

@@ -21,6 +21,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 		const defaultParsed = parseCliArgs([]);
 		expect(defaultParsed.command).toBe("install");
 		expect(defaultParsed.explicitCommand).toBe(false);
+		expect(defaultParsed.noDockerStart).toBe(false);
 
 		const fullParsed = parseCliArgs([
 			"./my-app",
@@ -28,6 +29,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 			"--local-mcp",
 			"--no-global",
 			"--no-update",
+			"--no-docker-start",
 			"--runtime",
 			"node",
 			"--force",
@@ -39,6 +41,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 		expect(fullParsed.localMcp).toBe(true);
 		expect(fullParsed.noGlobal).toBe(true);
 		expect(fullParsed.noUpdate).toBe(true);
+		expect(fullParsed.noDockerStart).toBe(true);
 		expect(fullParsed.runtime).toBe("node");
 		expect(fullParsed.force).toBe(true);
 		expect(fullParsed.dryRun).toBe(true);
@@ -154,9 +157,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 		}
 	});
 
-	test(
-		"detects brownfield projects, preserves existing AGENTS.md/.gitignore, and remains idempotent across runs",
-		() => {
+	test("detects brownfield projects, preserves existing AGENTS.md/.gitignore, and remains idempotent across runs", () => {
 		const root = makeTempDir("agy-install-brownfield-");
 		const targetDir = path.join(root, "existing-api");
 		const antigravityDir = path.join(root, "antigravity");
@@ -257,9 +258,9 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 				force: true,
 				log: () => {},
 			});
-			expect(
-				fs.existsSync(path.join(targetDir, ".ensemble", "team.db")),
-			).toBe(true);
+			expect(fs.existsSync(path.join(targetDir, ".ensemble", "team.db"))).toBe(
+				true,
+			);
 
 			const gitignoreLines = fs
 				.readFileSync(path.join(targetDir, ".gitignore"), "utf8")
@@ -269,9 +270,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 		} finally {
 			fs.rmSync(root, { recursive: true, force: true });
 		}
-		},
-		15000,
-	);
+	}, 15000);
 
 	test("copies optional templates (--with-templates), writes local mcp.json (--local-mcp), and respects --force", () => {
 		const root = makeTempDir("agy-install-templates-");
@@ -341,7 +340,9 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 				log: () => {},
 			});
 			expect(forced.templates.copied).toContain(".gitleaks.toml");
-			expect(fs.readFileSync(gitleaksPath, "utf8")).toContain("generic-api-key");
+			expect(fs.readFileSync(gitleaksPath, "utf8")).toContain(
+				"generic-api-key",
+			);
 		} finally {
 			fs.rmSync(root, { recursive: true, force: true });
 		}
@@ -376,9 +377,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 				log: () => {},
 			});
 			expect(cloneDry.action).toBe("cloned");
-			expect(
-				fs.existsSync(path.join(root, ".agy-ensemble-dry")),
-			).toBe(false);
+			expect(fs.existsSync(path.join(root, ".agy-ensemble-dry"))).toBe(false);
 
 			// Real install then project uninstall
 			installIntoProject({
@@ -397,7 +396,9 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 			});
 			expect(uninst.uninstalled).toBe(true);
 			expect(
-				fs.existsSync(path.join(targetDir, ".agents", "plugins", "agy-ensemble")),
+				fs.existsSync(
+					path.join(targetDir, ".agents", "plugins", "agy-ensemble"),
+				),
 			).toBe(false);
 			expect(fs.existsSync(path.join(targetDir, "mcp.json"))).toBe(false);
 			// User governance doc AGENTS.md is preserved on uninstall
@@ -458,9 +459,7 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 		}
 	});
 
-	test(
-		"registers Context7 MCP (@upstash/context7-mcp) during initial setup, supports --no-context7 / --context7-api-key, and cleans up on uninstall",
-		() => {
+	test("registers Context7 MCP (@upstash/context7-mcp) during initial setup, supports --no-context7 / --context7-api-key, and cleans up on uninstall", () => {
 		const parsed = parseCliArgs([
 			"./app",
 			"--no-context7",
@@ -575,8 +574,43 @@ describe("IMP-19 / VAL-19: npx Project Installer & Antigravity Plugin Manifests"
 		} finally {
 			fs.rmSync(root, { recursive: true, force: true });
 		}
-		},
-		15000,
-	);
-});
+	}, 15000);
 
+	test("provisions SAST + DAST + PenTest security suite Docker containers at setup", () => {
+		const root = makeTempDir("agy-security-suite-");
+		const targetDir = path.join(root, "secured-app");
+		fs.mkdirSync(targetDir, { recursive: true });
+
+		try {
+			const res = installIntoProject({
+				targetDir,
+				sourceDir: PACKAGE_ROOT_DIR,
+				noGlobal: true,
+				graphify: false,
+				noDockerStart: true,
+				runtime: "node",
+				log: () => {},
+			});
+
+			expect(res.securitySuite).toBeDefined();
+			expect(res.securitySuite.configured).toBe(true);
+			expect(res.securitySuite.composeFile).toContain(
+				"docker-compose.security.yml",
+			);
+			expect(fs.existsSync(res.securitySuite.composeFile)).toBe(true);
+
+			const composeContent = fs.readFileSync(
+				res.securitySuite.composeFile,
+				"utf8",
+			);
+			expect(composeContent).toContain("sast-semgrep");
+			expect(composeContent).toContain("sast-trivy");
+			expect(composeContent).toContain("dast-zap");
+			expect(composeContent).toContain("dast-nuclei");
+			expect(composeContent).toContain("pentest-vault");
+			expect(composeContent).toContain("pentest-runner");
+		} finally {
+			fs.rmSync(root, { recursive: true, force: true });
+		}
+	});
+});

@@ -408,7 +408,8 @@ export function syncProjectGraphify(
 		return {
 			updated: false,
 			dryRun: false,
-			skippedReason: errText || `graphify update exited with code ${res.status}`,
+			skippedReason:
+				errText || `graphify update exited with code ${res.status}`,
 			status,
 		};
 	}

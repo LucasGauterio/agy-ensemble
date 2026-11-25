@@ -7,3 +7,8 @@ reports/
 *.db-wal
 .env
 .env.*
+.ensemble/
+.agents/
+docker-compose.security.yml
+graphify-out/
+

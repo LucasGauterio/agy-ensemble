@@ -1130,10 +1130,11 @@ This project is configured with **agy-ensemble** for Google Antigravity.
 
 1. **Etapa 0.0 (Brownfield & Codebase-Doc Sync Gate):** Before adding features to an existing codebase, ensure \`README.md\`, \`AGENTS.md\`, \`CLAUDE.md\`, \`CONTEXT.md\`, \`docs/PRD.md\`, \`docs/RFC.md\`, \`docs/FDD.md\`, \`docs/DESIGN_SYSTEM.md\`, \`docs/project-plan.md\`, \`docs/TRACKER.md\`, and \`docs/VALIDATION.md\` exist and have \`0 drift\`. Run \`/init-project\` when bootstrapping an existing repository.
 2. **Etapa 1.0 (Iterative Assumption Interview):** Resolve open assumptions in batches of 3–5 questions via \`ask_question\` (\`(Recommended)\` first) and synthesize the \`Requisição Consolidada Oficial\` before planning.
-3. **Mandato NFR-0 & LGPD Compliance:** Enforce Brazilian LGPD (Law No. 13.709/2018) data mapping (ROPA), PII log redaction (\`[LGPD_REDACTED]\`), secret protection (Vault + Gitleaks), and OpenTelemetry observability by default.
-4. **Strict Delegate Mode (\`delegate: true\`):** Use \`/agy-ensemble "<pedido>"\` to orchestrate parallel \`worker-teammate\` executions in isolated \`Workspace: 'share'\` worktrees with mandatory branch preservation.
-5. **Continuous README Sync (\`README-SYNC-0\`):** Keep \`README.md\` synchronized with delivered phases, endpoints, environment variables, and test commands before merging.
-6. **Graphify Knowledge Graph (\`graphify-out/\`):** Query \`graphify-out/GRAPH_REPORT.md\` and the \`graphify\` MCP server (\`query_graph\`, \`get_neighbors\`, \`shortest_path\`, \`god_nodes\`) before raw file grepping, and run \`graphify update .\` after phase merges.
+3. **Mandato NFR-0 & LGPD Compliance (Production Only):** Enforce Brazilian LGPD (Law No. 13.709/2018) data mapping (ROPA), PII log redaction (\`[LGPD_REDACTED]\`), Vault Transit encryption, and crypto-shredding in production runtime and DB storage. Mission Control and local dev tools explicitly show all raw data and command arguments without masking.
+4. **Mandatory Security Suite:** The SAST (Semgrep, Trivy), DAST (OWASP ZAP, Nuclei), and PenTest suite (\`docker-compose.security.yml\`) is provisioned and started at setup regardless of brief wording — security first.
+5. **Strict Delegate Mode (\`delegate: true\`):** Use \`/agy-ensemble "<pedido>"\` to orchestrate parallel \`worker-teammate\` executions in isolated \`Workspace: 'share'\` worktrees with mandatory branch preservation.
+6. **Continuous README Sync (\`README-SYNC-0\`):** Keep \`README.md\` synchronized with delivered phases, endpoints, environment variables, and test commands before merging.
+7. **Graphify Knowledge Graph (\`graphify-out/\`):** Query \`graphify-out/GRAPH_REPORT.md\` and the \`graphify\` MCP server (\`query_graph\`, \`get_neighbors\`, \`shortest_path\`, \`god_nodes\`) before raw file grepping, and run \`graphify update .\` after phase merges.
 `;
 
 	if (!options.dryRun) {
@@ -1185,6 +1186,11 @@ export function copyOptionalTemplates(sourceDir, targetDir, options = {}) {
 			executable: false,
 		},
 		{
+			src: path.join("templates", "docker-compose.security.yml.template"),
+			dest: "docker-compose.security.yml",
+			executable: false,
+		},
+		{
 			src: path.join("templates", "scripts", "test-env", "run-phase-gate.sh"),
 			dest: path.join("scripts", "test-env", "run-phase-gate.sh"),
 			executable: true,
@@ -1225,6 +1231,210 @@ export function copyOptionalTemplates(sourceDir, targetDir, options = {}) {
 	}
 
 	return { copied, skipped };
+}
+
+/**
+ * Check whether Docker is available and responsive on the current system.
+ *
+ * @returns {boolean}
+ */
+export function isDockerAvailable() {
+	const docker = findExecutable("docker");
+	if (!docker) return false;
+	try {
+		const res = spawnSync(docker, ["info"], {
+			encoding: "utf8",
+			stdio: ["ignore", "ignore", "ignore"],
+			timeout: 5000,
+		});
+		return res.status === 0;
+	} catch {
+		return false;
+	}
+}
+
+const FALLBACK_SECURITY_COMPOSE = `# agy-ensemble — SAST + DAST + PenTest Offensive & Defensive Security Suite
+services:
+  sast-semgrep:
+    image: semgrep/semgrep:latest
+    container_name: \${COMPOSE_PROJECT_NAME:-ensemble}-sast-semgrep
+    entrypoint: ["sh", "-c", "trap exit TERM; while :; do sleep 3600; done"]
+    volumes:
+      - .:/src:ro
+
+  sast-trivy:
+    image: aquasec/trivy:latest
+    container_name: \${COMPOSE_PROJECT_NAME:-ensemble}-sast-trivy
+    entrypoint: ["sh", "-c", "trap exit TERM; while :; do sleep 3600; done"]
+    volumes:
+      - .:/src:ro
+
+  dast-zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    container_name: \${COMPOSE_PROJECT_NAME:-ensemble}-dast-zap
+    command: zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.disablekey=true
+    ports:
+      - "127.0.0.1:\${ZAP_PORT:-8080}:8080"
+
+  dast-nuclei:
+    image: projectdiscovery/nuclei:latest
+    container_name: \${COMPOSE_PROJECT_NAME:-ensemble}-dast-nuclei
+    entrypoint: ["sh", "-c", "trap exit TERM; while :; do sleep 3600; done"]
+
+  pentest-vault:
+    image: openbao/openbao:latest
+    container_name: \${COMPOSE_PROJECT_NAME:-ensemble}-pentest-vault
+    environment:
+      BAO_DEV_ROOT_TOKEN_ID: "ensemble_dev_vault_root_token"
+    ports:
+      - "127.0.0.1:\${VAULT_PORT:-8200}:8200"
+
+  pentest-runner:
+    image: node:20-alpine
+    container_name: \${COMPOSE_PROJECT_NAME:-ensemble}-pentest-runner
+    entrypoint: ["sh", "-c", "trap exit TERM; while :; do sleep 3600; done"]
+    volumes:
+      - .:/app:ro
+`;
+
+/**
+ * Ensure docker-compose.security.yml exists in targetDir and start the
+ * SAST + DAST + PenTest suite docker containers if Docker is responsive.
+ *
+ * @param {string} targetDir
+ * @param {{
+ *   sourceDir?: string;
+ *   force?: boolean;
+ *   dryRun?: boolean;
+ *   noDockerStart?: boolean;
+ *   log?: (msg: string) => void;
+ * }} [options]
+ * @returns {{
+ *   configured: boolean;
+ *   started: boolean;
+ *   composeFile: string;
+ *   reason?: string;
+ * }}
+ */
+export function setupSecuritySuiteForProject(targetDir, options = {}) {
+	const log = options.log ?? ((msg) => console.log(msg));
+	const composeFile = path.join(targetDir, "docker-compose.security.yml");
+
+	const templateCandidates = [
+		options.sourceDir
+			? path.join(
+					options.sourceDir,
+					"templates",
+					"docker-compose.security.yml.template",
+				)
+			: null,
+		path.join(
+			PACKAGE_ROOT_DIR,
+			"templates",
+			"docker-compose.security.yml.template",
+		),
+		path.join(
+			getDefaultEnsembleHome(),
+			"templates",
+			"docker-compose.security.yml.template",
+		),
+	].filter(Boolean);
+
+	const templatePath = templateCandidates.find((p) => p && fs.existsSync(p));
+
+	if (!options.dryRun) {
+		fs.mkdirSync(targetDir, { recursive: true });
+		if (!fs.existsSync(composeFile) || options.force) {
+			if (templatePath) {
+				fs.copyFileSync(templatePath, composeFile);
+			} else {
+				fs.writeFileSync(composeFile, FALLBACK_SECURITY_COMPOSE, "utf8");
+			}
+		}
+	}
+
+	const isTestEnv =
+		process.env.NODE_ENV === "test" ||
+		process.env.BUN_ENV === "test" ||
+		Boolean(process.env.VITEST);
+
+	if (options.noDockerStart || (isTestEnv && options.noDockerStart !== false)) {
+		return {
+			configured: true,
+			started: false,
+			composeFile,
+			reason: options.noDockerStart
+				? "Skipped via options.noDockerStart"
+				: "Skipped in test environment",
+		};
+	}
+
+	if (!isDockerAvailable()) {
+		log(
+			"[agy-ensemble] Docker daemon is not active. Configured docker-compose.security.yml (run `docker compose -f docker-compose.security.yml up -d` once Docker starts).",
+		);
+		return {
+			configured: true,
+			started: false,
+			composeFile,
+			reason: "Docker daemon not running",
+		};
+	}
+
+	if (options.dryRun) {
+		log(
+			`[agy-ensemble] [dry-run] Would execute: docker compose -f ${composeFile} up -d`,
+		);
+		return {
+			configured: true,
+			started: true,
+			composeFile,
+			reason: "dry-run",
+		};
+	}
+
+	try {
+		log(
+			"[agy-ensemble] Starting SAST + DAST + PenTest security suite Docker containers...",
+		);
+		const upRes = spawnSync(
+			"docker",
+			["compose", "-f", composeFile, "up", "-d", "--remove-orphans"],
+			{
+				cwd: targetDir,
+				encoding: "utf8",
+				stdio: ["ignore", "pipe", "pipe"],
+				timeout: 300000,
+			},
+		);
+
+		if (upRes.status === 0) {
+			log(
+				"[agy-ensemble] SAST + DAST + PenTest suite containers are UP and running.",
+			);
+			return { configured: true, started: true, composeFile };
+		}
+
+		log(
+			`[agy-ensemble] Warning: docker compose up returned code ${upRes.status}: ${(upRes.stderr || upRes.stdout || "").trim()}`,
+		);
+		return {
+			configured: true,
+			started: false,
+			composeFile,
+			reason: (upRes.stderr || upRes.stdout || "exit non-zero").trim(),
+		};
+	} catch (err) {
+		log(
+			`[agy-ensemble] Warning: Failed to spawn docker compose: ${err?.message || err}`,
+		);
+		return {
+			configured: true,
+			started: false,
+			composeFile,
+			reason: err?.message || String(err),
+		};
+	}
 }
 
 /**
@@ -1368,21 +1578,6 @@ export function installIntoProject(options = {}) {
 		dryRun: options.dryRun,
 	});
 
-	// 1b. Sync plugin to any active git worktrees of targetDir
-	const projectWorktreesResult = syncProjectWorktrees(
-		targetDir,
-		resolvedSourceDir,
-		{
-			runtime,
-			graphify: graphifyEnabled,
-			graphifyMcpBin: null,
-			context7: context7Enabled,
-			context7ApiKey: options.context7ApiKey,
-			force: options.force,
-			dryRun: options.dryRun,
-		},
-	);
-
 	// 2. Ensure starter AGENTS.md if absent
 	const projectName = path.basename(targetDir) || "project";
 	const agentsMdResult = ensureStarterAgentsMd(targetDir, projectName, {
@@ -1475,6 +1670,15 @@ export function installIntoProject(options = {}) {
 			})
 		: { copied: [], skipped: [] };
 
+	// 7. Mandatory SAST + DAST + PenTest security suite Docker containers
+	const securitySuiteResult = setupSecuritySuiteForProject(targetDir, {
+		sourceDir: resolvedSourceDir,
+		force: options.force,
+		dryRun: options.dryRun,
+		noDockerStart: options.noDockerStart,
+		log,
+	});
+
 	return {
 		targetDir,
 		sourceDir: resolvedSourceDir,
@@ -1483,6 +1687,8 @@ export function installIntoProject(options = {}) {
 		runtime,
 		projectMode,
 		projectPlugin: projectPluginResult,
+		worktrees: worktreesResult,
+		securitySuite: securitySuiteResult,
 		agentsMd: agentsMdResult,
 		gitignore: gitignoreResult,
 		localMcp: localMcpResult,
@@ -1627,6 +1833,7 @@ export function parseCliArgs(argv, defaults = {}) {
 		context7ApiKey: undefined,
 		force: false,
 		dryRun: false,
+		noDockerStart: false,
 	};
 
 	const knownCommands = new Set([
@@ -1713,6 +1920,8 @@ export function parseCliArgs(argv, defaults = {}) {
 			result.installGraphify = true;
 		} else if (arg === "--no-context7") {
 			result.noContext7 = true;
+		} else if (arg === "--no-docker-start") {
+			result.noDockerStart = true;
 		} else if (arg === "--context7-api-key" && i + 1 < argv.length) {
 			result.context7ApiKey = argv[++i];
 		} else if (arg === "--force" || arg === "-f") {
@@ -1827,6 +2036,16 @@ export function printInstallSummary(res, dryRun = false) {
 			res.context7.enabled
 				? ` Context7 MCP:      registered via ${res.context7.command} (@upstash/context7-mcp${res.context7.hasApiKey ? ", API key set" : ""})`
 				: " Context7 MCP:      disabled (--no-context7)",
+		);
+	}
+	if (res.securitySuite) {
+		const secStatus = res.securitySuite.started
+			? "UP & running"
+			: res.securitySuite.configured
+				? `configured (${res.securitySuite.reason || "docker compose up pending"})`
+				: "failed";
+		console.log(
+			` Security Suite:    ${res.securitySuite.composeFile} [${secStatus}]`,
 		);
 	}
 	if (res.templates.copied.length > 0 || res.templates.skipped.length > 0) {

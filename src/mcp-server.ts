@@ -880,7 +880,10 @@ const TELEMETRY_MUTATION_TOOLS = new Set([
 	"ensemble_cleanup",
 ]);
 
-function findOrCreateRootTraceSpan(db: Database, teamId: string): string | null {
+function findOrCreateRootTraceSpan(
+	db: Database,
+	teamId: string,
+): string | null {
 	const teamRow = db
 		.query("SELECT id, name FROM team WHERE id = ?")
 		.get(teamId) as { id: string; name: string } | undefined;
@@ -961,7 +964,8 @@ function recordToolCallTelemetry(
 
 	let parentSpanId = rootId;
 	let siRecorded = false;
-	const siId = typeof input.args.siId === "string" ? input.args.siId : undefined;
+	const siId =
+		typeof input.args.siId === "string" ? input.args.siId : undefined;
 	const agentName =
 		typeof input.args.name === "string"
 			? input.args.name

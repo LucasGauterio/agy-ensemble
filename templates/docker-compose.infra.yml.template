@@ -1,3 +1,4 @@
+# agy-ensemble — Unified Multi-Tenant Infrastructure & Offensive/Defensive Security Suite
 services:
   postgres:
     image: postgres:16-alpine
@@ -5,13 +6,56 @@ services:
       POSTGRES_USER: ensemble_admin
       POSTGRES_PASSWORD: ensemble_dev_only_local_boot
       POSTGRES_DB: app_shared
+    ports:
+      - "127.0.0.1:5432:5432"
+
   redis:
     image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+
   rabbitmq:
     image: rabbitmq:3-management-alpine
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+
   vault:
     image: openbao/openbao:latest
+    environment:
+      BAO_DEV_ROOT_TOKEN_ID: "ensemble_dev_vault_root_token"
+    ports:
+      - "127.0.0.1:8200:8200"
+
   sonarqube:
     image: sonarqube:community
+    ports:
+      - "127.0.0.1:9000:9000"
+
   zap:
     image: ghcr.io/zaproxy/zaproxy:stable
+    command: zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.disablekey=true
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  sast-semgrep:
+    image: semgrep/semgrep:latest
+    entrypoint: ["sh", "-c", "trap exit TERM; while :; do sleep 3600; done"]
+    volumes:
+      - .:/src:ro
+
+  sast-trivy:
+    image: aquasec/trivy:latest
+    entrypoint: ["sh", "-c", "trap exit TERM; while :; do sleep 3600; done"]
+    volumes:
+      - .:/src:ro
+
+  dast-nuclei:
+    image: projectdiscovery/nuclei:latest
+    entrypoint: ["sh", "-c", "trap exit TERM; while :; do sleep 3600; done"]
+
+  pentest-runner:
+    image: node:20-alpine
+    entrypoint: ["sh", "-c", "trap exit TERM; while :; do sleep 3600; done"]
+    volumes:
+      - .:/app:ro

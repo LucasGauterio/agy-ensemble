@@ -55,6 +55,21 @@ export interface GraphifySetupResult {
 	warnings: string[];
 }
 
+export interface SecuritySuiteSetupOptions {
+	sourceDir?: string;
+	force?: boolean;
+	dryRun?: boolean;
+	noDockerStart?: boolean;
+	log?: (msg: string) => void;
+}
+
+export interface SecuritySuiteSetupResult {
+	configured: boolean;
+	started: boolean;
+	composeFile: string;
+	reason?: string;
+}
+
 export interface ProjectInstallOptions {
 	targetDir?: string;
 	ensembleHome?: string;
@@ -71,6 +86,7 @@ export interface ProjectInstallOptions {
 	installGraphify?: boolean;
 	context7?: boolean;
 	context7ApiKey?: string;
+	noDockerStart?: boolean;
 	force?: boolean;
 	dryRun?: boolean;
 	log?: (msg: string) => void;
@@ -99,6 +115,8 @@ export interface ProjectInstallResult {
 	templates: { copied: string[]; skipped: string[] };
 	graphify: GraphifySetupResult;
 	context7: Context7SetupResult;
+	securitySuite: SecuritySuiteSetupResult;
+	worktrees: Array<{ worktreeDir: string; pluginPath: string }>;
 }
 
 export interface ProjectUninstallOptions {
@@ -144,6 +162,7 @@ export interface ParsedCliArgs {
 	context7ApiKey?: string;
 	force: boolean;
 	dryRun: boolean;
+	noDockerStart: boolean;
 }
 
 export function getDefaultEnsembleHome(override?: string): string;
@@ -220,6 +239,11 @@ export function copyOptionalTemplates(
 export function detectProjectMode(
 	targetDir: string,
 ): "brownfield" | "greenfield";
+export function isDockerAvailable(): boolean;
+export function setupSecuritySuiteForProject(
+	targetDir: string,
+	options?: SecuritySuiteSetupOptions,
+): SecuritySuiteSetupResult;
 export function installIntoProject(
 	options?: ProjectInstallOptions,
 ): ProjectInstallResult;

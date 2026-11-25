@@ -200,7 +200,7 @@ describe("IMP-04 / VAL-04: Live Execution Trace Graph UI & 3-Level Semantic Zoom
 				};
 				expect(stateJson.hasData).toBe(true);
 				expect(
-					stateJson.nodes.some((n) => n.label.includes("[LGPD_REDACTED]")),
+					stateJson.nodes.some((n) => n.label.includes("123.456.789-00")),
 				).toBe(true);
 
 				const nodeRes = await fetch(

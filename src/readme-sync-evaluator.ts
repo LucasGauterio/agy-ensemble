@@ -45,7 +45,9 @@ export function evaluatePhaseReadmeSync(
 	const missingDeliverables: string[] = [];
 
 	// 1. Must mention phase identifier or name
-	const hasPhaseId = content.toLowerCase().includes(input.phaseId.toLowerCase());
+	const hasPhaseId = content
+		.toLowerCase()
+		.includes(input.phaseId.toLowerCase());
 	const hasPhaseName = content
 		.toLowerCase()
 		.includes(input.phaseName.toLowerCase());

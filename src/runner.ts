@@ -13,6 +13,7 @@ import {
 	printInstallSummary,
 	removeMcpServerFromFile,
 	setupGraphifyForProject,
+	setupSecuritySuiteForProject,
 	uninstallFromProject,
 } from "./installer";
 import { startTraceGraphServer } from "./trace-graph-server";
@@ -44,6 +45,7 @@ export interface RunnerOptions {
 	installGraphify?: boolean;
 	noContext7?: boolean;
 	context7ApiKey?: string;
+	noDockerStart?: boolean;
 	force?: boolean;
 }
 
@@ -510,7 +512,9 @@ export async function main(
 			);
 
 			// 4. Register MCP Server (agy-ensemble + Graphify)
-			console.log("[4/5] Registering agy-ensemble & Graphify MCP Servers in mcp.json...");
+			console.log(
+				"[4/5] Registering agy-ensemble & Graphify MCP Servers in mcp.json...",
+			);
 			const mcpResult = registerMcpServer(projectDir, antigravityHome, {
 				runtime: options.runtime ?? runtimeInfo.runtime,
 				dryRun: options.dryRun,
@@ -551,6 +555,20 @@ export async function main(
 					`      Context7:    registered via ${ctx7Entry.command} (@upstash/context7-mcp)${options.dryRun ? " [dry-run]" : ""}`,
 				);
 			}
+
+			// 4b. Security Suite (SAST + DAST + PenTest containers)
+			console.log(
+				"[4b/5] Provisioning SAST + DAST + PenTest security suite Docker containers...",
+			);
+			const secSuiteRes = setupSecuritySuiteForProject(projectDir, {
+				sourceDir: projectDir,
+				force: options.force,
+				dryRun: options.dryRun,
+				noDockerStart: options.noDockerStart,
+			});
+			console.log(
+				`      Security Suite: ${secSuiteRes.composeFile} [configured=${secSuiteRes.configured}, started=${secSuiteRes.started}${secSuiteRes.reason ? `, ${secSuiteRes.reason}` : ""}]`,
+			);
 
 			// 5. Verify
 			console.log("[5/5] Running verification sanity checks...");
@@ -608,9 +626,13 @@ export async function main(
 			const port = options.port ?? 4141;
 			const targetRoot = path.resolve(options.targetDir ?? projectDir);
 			const dbPath =
-				process.env.ENSEMBLE_DB_PATH && path.isAbsolute(process.env.ENSEMBLE_DB_PATH)
+				process.env.ENSEMBLE_DB_PATH &&
+				path.isAbsolute(process.env.ENSEMBLE_DB_PATH)
 					? process.env.ENSEMBLE_DB_PATH
-					: path.join(targetRoot, process.env.ENSEMBLE_DB_PATH || ".ensemble/team.db");
+					: path.join(
+							targetRoot,
+							process.env.ENSEMBLE_DB_PATH || ".ensemble/team.db",
+						);
 
 			const handle = await startTraceGraphServer({ dbPath, port });
 			console.log(

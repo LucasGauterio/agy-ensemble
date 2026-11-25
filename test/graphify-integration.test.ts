@@ -137,115 +137,111 @@ describe("IMP-20 / VAL-20: Graphify Knowledge Graph & Initial Setup Integration"
 		expect(runnerNoGraphify.noGraphify).toBe(true);
 	});
 
-	test(
-		"wires Graphify MCP server during initial setup, respects --no-graphify, and cleans up on uninstall",
-		() => {
-			const root = makeTempDir("agy-install-graphify-");
-			const targetWithGraphify = path.join(root, "with-graphify");
-			const targetNoGraphify = path.join(root, "without-graphify");
-			const antigravityDir = path.join(root, "antigravity");
-			fs.mkdirSync(targetWithGraphify, { recursive: true });
-			fs.mkdirSync(targetNoGraphify, { recursive: true });
-			fs.mkdirSync(antigravityDir, { recursive: true });
+	test("wires Graphify MCP server during initial setup, respects --no-graphify, and cleans up on uninstall", () => {
+		const root = makeTempDir("agy-install-graphify-");
+		const targetWithGraphify = path.join(root, "with-graphify");
+		const targetNoGraphify = path.join(root, "without-graphify");
+		const antigravityDir = path.join(root, "antigravity");
+		fs.mkdirSync(targetWithGraphify, { recursive: true });
+		fs.mkdirSync(targetNoGraphify, { recursive: true });
+		fs.mkdirSync(antigravityDir, { recursive: true });
 
-			try {
-				// Default install registers both agy-ensemble and graphify MCP servers
-				const res = installIntoProject({
-					targetDir: targetWithGraphify,
-					sourceDir: PACKAGE_ROOT_DIR,
-					antigravityDir,
-					localMcp: true,
-					runtime: "node",
-					log: () => {},
-				});
+		try {
+			// Default install registers both agy-ensemble and graphify MCP servers
+			const res = installIntoProject({
+				targetDir: targetWithGraphify,
+				sourceDir: PACKAGE_ROOT_DIR,
+				antigravityDir,
+				localMcp: true,
+				runtime: "node",
+				log: () => {},
+			});
 
-				expect(res.graphify.enabled).toBe(true);
-				if (res.graphify.graphifyBin) {
-					expect(res.graphify.antigravityConfigured).toBe(true);
-					expect(
-						fs.existsSync(
-							path.join(targetWithGraphify, ".agents", "rules", "graphify.md"),
-						),
-					).toBe(true);
-				}
-
-				const pluginMcp = JSON.parse(
-					fs.readFileSync(
-						path.join(
-							targetWithGraphify,
-							".agents",
-							"plugins",
-							"agy-ensemble",
-							"mcp_config.json",
-						),
-						"utf8",
-					),
-				);
-				expect(pluginMcp.mcpServers["agy-ensemble"]).toBeDefined();
-				expect(pluginMcp.mcpServers.graphify).toBeDefined();
+			expect(res.graphify.enabled).toBe(true);
+			if (res.graphify.graphifyBin) {
+				expect(res.graphify.antigravityConfigured).toBe(true);
 				expect(
-					pluginMcp.mcpServers.graphify.args.some((arg: string) =>
-						arg.includes(path.join("graphify-out", "graph.json")),
+					fs.existsSync(
+						path.join(targetWithGraphify, ".agents", "rules", "graphify.md"),
 					),
 				).toBe(true);
-
-				const localMcp = JSON.parse(
-					fs.readFileSync(path.join(targetWithGraphify, "mcp.json"), "utf8"),
-				);
-				expect(localMcp.mcpServers.graphify).toBeDefined();
-
-				const globalMcp = JSON.parse(
-					fs.readFileSync(path.join(antigravityDir, "mcp.json"), "utf8"),
-				);
-				expect(globalMcp.mcpServers.graphify).toBeDefined();
-
-				// Starter AGENTS.md mentions Graphify Knowledge Graph
-				const agentsMd = fs.readFileSync(
-					path.join(targetWithGraphify, "AGENTS.md"),
-					"utf8",
-				);
-				expect(agentsMd).toContain("Graphify Knowledge Graph");
-
-				// Opting out via graphify: false skips Graphify setup and MCP registration
-				const optOutRes = installIntoProject({
-					targetDir: targetNoGraphify,
-					sourceDir: PACKAGE_ROOT_DIR,
-					localMcp: true,
-					noGlobal: true,
-					graphify: false,
-					runtime: "node",
-					log: () => {},
-				});
-				expect(optOutRes.graphify.enabled).toBe(false);
-				const optOutLocalMcp = JSON.parse(
-					fs.readFileSync(path.join(targetNoGraphify, "mcp.json"), "utf8"),
-				);
-				expect(optOutLocalMcp.mcpServers.graphify).toBeUndefined();
-
-				// Direct setupGraphifyForProject with enabled=false is a no-op
-				const disabledSetup = setupGraphifyForProject(targetNoGraphify, {
-					enabled: false,
-				});
-				expect(disabledSetup.enabled).toBe(false);
-
-				// Uninstall removes both agy-ensemble and graphify entries cleanly
-				const uninst = uninstallFromProject({
-					targetDir: targetWithGraphify,
-					antigravityDir,
-					global: true,
-				});
-				expect(uninst.uninstalled).toBe(true);
-				expect(fs.existsSync(path.join(targetWithGraphify, "mcp.json"))).toBe(
-					false,
-				);
-				const globalAfter = JSON.parse(
-					fs.readFileSync(path.join(antigravityDir, "mcp.json"), "utf8"),
-				);
-				expect(globalAfter.mcpServers.graphify).toBeUndefined();
-			} finally {
-				fs.rmSync(root, { recursive: true, force: true });
 			}
-		},
-		20000,
-	);
+
+			const pluginMcp = JSON.parse(
+				fs.readFileSync(
+					path.join(
+						targetWithGraphify,
+						".agents",
+						"plugins",
+						"agy-ensemble",
+						"mcp_config.json",
+					),
+					"utf8",
+				),
+			);
+			expect(pluginMcp.mcpServers["agy-ensemble"]).toBeDefined();
+			expect(pluginMcp.mcpServers.graphify).toBeDefined();
+			expect(
+				pluginMcp.mcpServers.graphify.args.some((arg: string) =>
+					arg.includes(path.join("graphify-out", "graph.json")),
+				),
+			).toBe(true);
+
+			const localMcp = JSON.parse(
+				fs.readFileSync(path.join(targetWithGraphify, "mcp.json"), "utf8"),
+			);
+			expect(localMcp.mcpServers.graphify).toBeDefined();
+
+			const globalMcp = JSON.parse(
+				fs.readFileSync(path.join(antigravityDir, "mcp.json"), "utf8"),
+			);
+			expect(globalMcp.mcpServers.graphify).toBeDefined();
+
+			// Starter AGENTS.md mentions Graphify Knowledge Graph
+			const agentsMd = fs.readFileSync(
+				path.join(targetWithGraphify, "AGENTS.md"),
+				"utf8",
+			);
+			expect(agentsMd).toContain("Graphify Knowledge Graph");
+
+			// Opting out via graphify: false skips Graphify setup and MCP registration
+			const optOutRes = installIntoProject({
+				targetDir: targetNoGraphify,
+				sourceDir: PACKAGE_ROOT_DIR,
+				localMcp: true,
+				noGlobal: true,
+				graphify: false,
+				runtime: "node",
+				log: () => {},
+			});
+			expect(optOutRes.graphify.enabled).toBe(false);
+			const optOutLocalMcp = JSON.parse(
+				fs.readFileSync(path.join(targetNoGraphify, "mcp.json"), "utf8"),
+			);
+			expect(optOutLocalMcp.mcpServers.graphify).toBeUndefined();
+
+			// Direct setupGraphifyForProject with enabled=false is a no-op
+			const disabledSetup = setupGraphifyForProject(targetNoGraphify, {
+				enabled: false,
+			});
+			expect(disabledSetup.enabled).toBe(false);
+
+			// Uninstall removes both agy-ensemble and graphify entries cleanly
+			const uninst = uninstallFromProject({
+				targetDir: targetWithGraphify,
+				antigravityDir,
+				global: true,
+			});
+			expect(uninst.uninstalled).toBe(true);
+			expect(fs.existsSync(path.join(targetWithGraphify, "mcp.json"))).toBe(
+				false,
+			);
+			const globalAfter = JSON.parse(
+				fs.readFileSync(path.join(antigravityDir, "mcp.json"), "utf8"),
+			);
+			expect(globalAfter.mcpServers.graphify).toBeUndefined();
+		} finally {
+			fs.rmSync(root, { recursive: true, force: true });
+		}
+	}, 20000);
 });

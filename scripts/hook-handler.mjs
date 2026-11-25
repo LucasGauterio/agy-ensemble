@@ -26,26 +26,22 @@ function readStdin() {
 	});
 }
 
-const SENSITIVE_KEYS =
-	/password|token|secret|authorization|apikey|api_key|cpf|cnpj|rg|email|telefone|celular|pix/i;
-
-function sanitizePayload(value, depth = 0) {
-	if (depth > 4) return "[TRUNCATED]";
+function formatDevToolPayload(value, depth = 0) {
+	if (depth > 6) return "[TRUNCATED_DEPTH]";
 	if (typeof value === "string") {
-		const redacted = value
-			.replace(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g, "[LGPD_REDACTED]")
-			.replace(/(sk-live-[a-z0-9]+|ghp_[a-z0-9]+|AKIA[0-9A-Z]+)/gi, "[SECRET_REDACTED]");
-		return redacted.length > 400 ? `${redacted.slice(0, 400)}...` : redacted;
+		return value.length > 3000
+			? `${value.slice(0, 3000)}... [TRUNCATED]`
+			: value;
 	}
 	if (Array.isArray(value)) {
-		return value.slice(0, 20).map((item) => sanitizePayload(item, depth + 1));
+		return value
+			.slice(0, 50)
+			.map((item) => formatDevToolPayload(item, depth + 1));
 	}
 	if (value && typeof value === "object") {
 		const out = {};
 		for (const [k, v] of Object.entries(value)) {
-			out[k] = SENSITIVE_KEYS.test(k)
-				? "[LGPD_REDACTED]"
-				: sanitizePayload(v, depth + 1);
+			out[k] = formatDevToolPayload(v, depth + 1);
 		}
 		return out;
 	}
@@ -339,7 +335,7 @@ async function recordHookTelemetry(payload) {
 		const args = payload.toolCall?.args ?? {};
 		const cmdHint =
 			typeof args.CommandLine === "string"
-				? ` (${sanitizePayload(args.CommandLine)})`
+				? ` (${args.CommandLine.slice(0, 100)})`
 				: typeof args.Path === "string"
 					? ` (${path.basename(args.Path)})`
 					: typeof args.TargetFile === "string"
@@ -363,7 +359,7 @@ async function recordHookTelemetry(payload) {
 			status,
 			durationMs,
 			JSON.stringify(
-				sanitizePayload({
+				formatDevToolPayload({
 					tool: toolName,
 					args,
 					...(payload.error ? { error: payload.error } : {}),
