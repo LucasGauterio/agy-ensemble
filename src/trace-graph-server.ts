@@ -216,9 +216,8 @@ export function registerTraceProject(input: {
 		try {
 			const parsed = JSON.parse(fs.readFileSync(registryPath, "utf8"));
 			if (Array.isArray(parsed)) {
-				entries = parsed.filter(
-					(e): e is TraceProjectEntry =>
-						Boolean(e && typeof e.dbPath === "string"),
+				entries = parsed.filter((e): e is TraceProjectEntry =>
+					Boolean(e && typeof e.dbPath === "string"),
 				);
 			}
 		} catch {
@@ -226,9 +225,7 @@ export function registerTraceProject(input: {
 		}
 	}
 
-	const filtered = entries.filter(
-		(e) => path.resolve(e.dbPath) !== resolvedDb,
-	);
+	const filtered = entries.filter((e) => path.resolve(e.dbPath) !== resolvedDb);
 	const nextEntry: TraceProjectEntry = {
 		projectDir: resolvedProject,
 		projectName: path.basename(resolvedProject) || resolvedProject,
@@ -264,14 +261,13 @@ export function listTraceProjects(registryPath?: string): TraceProjectEntry[] {
 		const parsed = JSON.parse(fs.readFileSync(target, "utf8"));
 		if (!Array.isArray(parsed)) return [];
 		return parsed
-			.filter(
-				(e): e is TraceProjectEntry =>
-					Boolean(
-						e &&
-							typeof e.dbPath === "string" &&
-							typeof e.projectDir === "string" &&
-							fs.existsSync(e.projectDir),
-					),
+			.filter((e): e is TraceProjectEntry =>
+				Boolean(
+					e &&
+						typeof e.dbPath === "string" &&
+						typeof e.projectDir === "string" &&
+						fs.existsSync(e.projectDir),
+				),
 			)
 			.map((e) => ({
 				...e,
@@ -620,14 +616,36 @@ export function buildTraceSnapshot(
 	} = {},
 ): TraceSnapshot {
 	const zoomLevel: 1 | 2 | 3 = options.zoomLevel ?? 2;
-	const teams = db
+	let teams = db
 		.query(
 			"SELECT id, name, project_id, status, delegate, time_created, time_updated FROM team ORDER BY time_created DESC",
 		)
 		.all() as TeamSummaryRow[];
 
 	if (teams.length === 0) {
-		return emptyTraceSnapshot(zoomLevel, true);
+		const now = Date.now();
+		try {
+			db.run(
+				"INSERT OR IGNORE INTO project (id, name, path, status, time_created, time_updated) VALUES ('default', 'default', '.', 'active', ?, ?)",
+				now,
+				now,
+			);
+			db.run(
+				"INSERT OR IGNORE INTO team (id, name, project_id, lead_session_id, status, delegate, lead_agent, time_created, time_updated) VALUES ('team_default', 'default', 'default', 'session_default', 'active', 1, 'lead', ?, ?)",
+				now,
+				now,
+			);
+			teams = db
+				.query(
+					"SELECT id, name, project_id, status, delegate, time_created, time_updated FROM team ORDER BY time_created DESC",
+				)
+				.all() as TeamSummaryRow[];
+		} catch {
+			// Ignore if tables not yet migrated
+		}
+		if (teams.length === 0) {
+			return emptyTraceSnapshot(zoomLevel, true);
+		}
 	}
 
 	const activeTeam =
@@ -660,7 +678,9 @@ export function buildTraceSnapshot(
 			: levelNodes;
 
 	const edgesRaw = db
-		.query("SELECT id, source_id, target_id, edge_kind FROM trace_edges WHERE team_id = ?")
+		.query(
+			"SELECT id, source_id, target_id, edge_kind FROM trace_edges WHERE team_id = ?",
+		)
 		.all(activeTeam.id) as Array<{
 		id: string;
 		source_id: string;
@@ -759,10 +779,27 @@ export function buildTraceSnapshot(
 							timeStarted: activeTeam.time_created,
 							timeCompleted: activeTeam.time_updated,
 						}))
-				: [];
+				: zoomLevel === 2 && allNodes.length > 0 && levelCounts.level2 === 0
+					? allNodes.slice(-30).map((n) => ({
+							id: n.id,
+							parentId: n.parent_id,
+							label: n.label,
+							nodeKind: n.node_kind,
+							status: n.status,
+							siId: n.si_id,
+							agentName: n.agent_name,
+							estCostUsd: n.est_cost_usd,
+							actualCostUsd: n.actual_cost_usd,
+							estDurationMs: n.est_duration_ms,
+							actualDurationMs: n.actual_duration_ms,
+							timeStarted: n.time_started,
+							timeCompleted: n.time_completed,
+						}))
+					: [];
 
 	return {
-		hasData: allNodes.length > 0 || tasksRaw.length > 0 || membersRaw.length > 0,
+		hasData:
+			allNodes.length > 0 || tasksRaw.length > 0 || membersRaw.length > 0,
 		dbExists: true,
 		team: activeTeam,
 		teams,
@@ -899,10 +936,15 @@ function readTraceFingerprint(
 	const fingerprint = JSON.stringify({
 		hasData: snapshot.hasData,
 		teamId: snapshot.team?.id ?? null,
+		teamUpdated: snapshot.team?.time_updated ?? 0,
 		counts: snapshot.levelCounts,
-		nodes: snapshot.nodes.map((n) => `${n.id}:${n.status}:${n.actualCostUsd}`),
+		nodes: snapshot.nodes.map(
+			(n) => `${n.id}:${n.status}:${n.actualCostUsd}:${n.actualDurationMs}`,
+		),
 		tasks: snapshot.tasks.map((t) => `${t.id}:${t.status}`),
-		members: snapshot.members.map((m) => `${m.name}:${m.status}:${m.executionStatus}`),
+		members: snapshot.members.map(
+			(m) => `${m.name}:${m.status}:${m.executionStatus}`,
+		),
 		msgLen: snapshot.messages.length,
 	});
 	return { fingerprint, snapshot };
@@ -1000,9 +1042,7 @@ export async function startTraceGraphServer(options: {
 				undefined;
 			const teamId = url.searchParams.get("teamId") || undefined;
 			const zoomLevel = parseZoomParam(url.searchParams.get("zoom"));
-			const maxTimestampMs = parseOptionalNumber(
-				url.searchParams.get("maxTs"),
-			);
+			const maxTimestampMs = parseOptionalNumber(url.searchParams.get("maxTs"));
 			try {
 				const { snapshot } = readEnrichedSnapshot({
 					requestedProjectOrDb,
@@ -1022,7 +1062,9 @@ export async function startTraceGraphServer(options: {
 		if (url.pathname === "/api/trace/node") {
 			const spanId = url.searchParams.get("spanId");
 			if (!spanId) {
-				writeJsonResponse(res, 400, { error: "Missing spanId query parameter." });
+				writeJsonResponse(res, 400, {
+					error: "Missing spanId query parameter.",
+				});
 				return;
 			}
 			const requestedProjectOrDb =
@@ -1052,9 +1094,7 @@ export async function startTraceGraphServer(options: {
 				undefined;
 			const teamId = url.searchParams.get("teamId") || undefined;
 			const zoomLevel = parseZoomParam(url.searchParams.get("zoom"));
-			const maxTimestampMs = parseOptionalNumber(
-				url.searchParams.get("maxTs"),
-			);
+			const maxTimestampMs = parseOptionalNumber(url.searchParams.get("maxTs"));
 			res.writeHead(200, {
 				"Content-Type": "text/event-stream; charset=utf-8",
 				"Cache-Control": "no-cache, no-transform",

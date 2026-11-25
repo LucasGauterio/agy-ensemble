@@ -192,6 +192,11 @@ export function syncProjectPluginDirectory(
 	destDir: string,
 	options?: { runtime?: string; force?: boolean; dryRun?: boolean },
 ): { path: string; action: "copied" | "updated" | "exists" };
+export function syncProjectWorktrees(
+	projectRootDir: string,
+	sourceDir: string,
+	options?: { runtime?: string; force?: boolean; dryRun?: boolean },
+): Array<{ worktreeDir: string; pluginPath: string }>;
 export function createOrUpdatePluginLink(
 	sourceDir: string,
 	linkPath: string,

@@ -9,7 +9,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "run_command|write_file|edit_file|replace_file_content|multi_replace_file_content|ensemble_.*",
+        "matcher": "run_command|write_file|edit_file|replace_file_content|multi_replace_file_content|read_file|view_file|send_message|invoke_subagent|schedule|update_steps|update_focus|ensemble_.*",
         "hooks": [
           {
             "type": "command",

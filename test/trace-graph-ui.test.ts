@@ -199,9 +199,9 @@ describe("IMP-04 / VAL-04: Live Execution Trace Graph UI & 3-Level Semantic Zoom
 					nodes: Array<{ id: string; label: string }>;
 				};
 				expect(stateJson.hasData).toBe(true);
-				expect(stateJson.nodes.some((n) => n.label.includes("[LGPD_REDACTED]"))).toBe(
-					true,
-				);
+				expect(
+					stateJson.nodes.some((n) => n.label.includes("[LGPD_REDACTED]")),
+				).toBe(true);
 
 				const nodeRes = await fetch(
 					`${server.url}/api/trace/node?spanId=${encodeURIComponent(l2.id)}`,
@@ -246,7 +246,12 @@ describe("IMP-04 / VAL-04: Live Execution Trace Graph UI & 3-Level Semantic Zoom
 	test("auto-starts singleton Trace Graph HTTP server when MCP stdio server runs without corrupting JSON-RPC stdout", async () => {
 		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-mcp-autostart-"));
 		const dbPath = path.join(tmpDir, ".ensemble", "team.db");
-		const mcpEntry = path.resolve(import.meta.dir, "..", "src", "mcp-server.ts");
+		const mcpEntry = path.resolve(
+			import.meta.dir,
+			"..",
+			"src",
+			"mcp-server.ts",
+		);
 		const tracePort = 44141 + Math.floor(Math.random() * 1000);
 
 		const child = spawn(process.execPath, ["run", mcpEntry], {
@@ -291,7 +296,9 @@ describe("IMP-04 / VAL-04: Live Execution Trace Graph UI & 3-Level Semantic Zoom
 			let healthOk = false;
 			for (let i = 0; i < 20; i++) {
 				try {
-					const res = await fetch(`http://127.0.0.1:${tracePort}/api/trace/health`);
+					const res = await fetch(
+						`http://127.0.0.1:${tracePort}/api/trace/health`,
+					);
 					if (res.ok) {
 						const body = (await res.json()) as { status: string };
 						if (body.status === "ok") {
@@ -322,7 +329,9 @@ describe("IMP-04 / VAL-04: Live Execution Trace Graph UI & 3-Level Semantic Zoom
 	});
 
 	test("keeps tracing endpoint alive via standby failover when an earlier agy-ensemble session exits", async () => {
-		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-trace-failover-"));
+		const tmpDir = fs.mkdtempSync(
+			path.join(os.tmpdir(), "agy-trace-failover-"),
+		);
 		const registryPath = path.join(tmpDir, "trace-registry.json");
 		const projA = path.join(tmpDir, "proj-a");
 		const projB = path.join(tmpDir, "proj-b");
@@ -380,6 +389,127 @@ describe("IMP-04 / VAL-04: Live Execution Trace Graph UI & 3-Level Semantic Zoom
 				fs.rmSync(tmpDir, { recursive: true, force: true });
 			} catch {
 				// ignore Windows temp handle
+			}
+		}
+	});
+
+	test("auto-bootstraps active team and records micro/meso telemetry from git worktrees and uninitialized team databases", async () => {
+		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agy-worktree-test-"));
+		const mainRepo = path.join(tmpDir, "main-repo");
+		fs.mkdirSync(mainRepo, { recursive: true });
+		execFileSync("git", ["init"], { cwd: mainRepo, stdio: "ignore" });
+		execFileSync("git", ["config", "user.name", "TestUser"], {
+			cwd: mainRepo,
+			stdio: "ignore",
+		});
+		execFileSync("git", ["config", "user.email", "test@local"], {
+			cwd: mainRepo,
+			stdio: "ignore",
+		});
+		fs.writeFileSync(path.join(mainRepo, "README.md"), "# Test\n", "utf8");
+		execFileSync("git", ["add", "README.md"], {
+			cwd: mainRepo,
+			stdio: "ignore",
+		});
+		execFileSync("git", ["commit", "-m", "initial commit"], {
+			cwd: mainRepo,
+			stdio: "ignore",
+		});
+
+		const dbPath = path.join(mainRepo, ".ensemble", "team.db");
+		const db = createDb(dbPath);
+		db.close();
+
+		const hookScript = path.resolve(
+			import.meta.dir,
+			"..",
+			"scripts",
+			"hook-handler.mjs",
+		);
+
+		try {
+			// 1. Tool execution in main repo with 0 teams must auto-create active team and L1/L2/L3 spans
+			const hookOut1 = execFileSync("node", [hookScript], {
+				input: JSON.stringify({
+					hookEventName: "PostToolUse",
+					conversationId: "conv-lead-1234",
+					cwd: mainRepo,
+					toolCall: {
+						name: "run_command",
+						args: { CommandLine: "npm test" },
+					},
+				}),
+				env: {
+					...process.env,
+					AGY_ENSEMBLE_DISABLE_TRACE_SERVER: "1",
+				},
+				encoding: "utf8",
+			});
+			expect(hookOut1.trim()).toBe("{}");
+
+			const snap1 = readTraceSnapshotFromFile(dbPath, { zoomLevel: 2 });
+			expect(snap1.hasData).toBe(true);
+			expect(snap1.team?.status).toBe("active");
+			expect(snap1.levelCounts.level1).toBe(1);
+			expect(snap1.levelCounts.level2).toBe(1);
+			expect(snap1.levelCounts.level3).toBe(1);
+			expect(snap1.nodes.length).toBeGreaterThanOrEqual(1);
+
+			// 2. Create a git worktree and execute hook from inside the worktree
+			const worktreeDir = path.join(tmpDir, "worktree-feat");
+			execFileSync(
+				"git",
+				["worktree", "add", "-b", "feat/sub", worktreeDir, "HEAD"],
+				{ cwd: mainRepo, stdio: "ignore" },
+			);
+
+			const hookOut2 = execFileSync("node", [hookScript], {
+				input: JSON.stringify({
+					hookEventName: "PostToolUse",
+					conversationId: "conv-sub-5678",
+					cwd: worktreeDir,
+					toolCall: {
+						name: "write_file",
+						args: { Path: path.join(worktreeDir, "feature.ts") },
+					},
+				}),
+				env: {
+					...process.env,
+					AGY_ENSEMBLE_DISABLE_TRACE_SERVER: "1",
+				},
+				encoding: "utf8",
+			});
+			expect(hookOut2.trim()).toBe("{}");
+
+			// Micro span count in mainRepo's team.db must now be 2
+			const snap2 = readTraceSnapshotFromFile(dbPath, { zoomLevel: 3 });
+			expect(snap2.levelCounts.level3).toBe(2);
+
+			// 3. syncProjectWorktrees must sync plugin to worktree with correct ENSEMBLE_DB_PATH
+			const { syncProjectWorktrees } = await import(
+				"../scripts/installer-core.mjs"
+			);
+			const sourceDir = path.resolve(import.meta.dir, "..");
+			const synced = syncProjectWorktrees(mainRepo, sourceDir);
+			expect(synced.length).toBe(1);
+			expect(synced[0]?.worktreeDir).toBe(path.resolve(worktreeDir));
+			const wtMcpPath = path.join(
+				worktreeDir,
+				".agents",
+				"plugins",
+				"agy-ensemble",
+				"mcp_config.json",
+			);
+			expect(fs.existsSync(wtMcpPath)).toBe(true);
+			const wtMcp = JSON.parse(fs.readFileSync(wtMcpPath, "utf8"));
+			expect(wtMcp.mcpServers?.["agy-ensemble"]?.env?.ENSEMBLE_DB_PATH).toBe(
+				path.resolve(dbPath),
+			);
+		} finally {
+			try {
+				fs.rmSync(tmpDir, { recursive: true, force: true });
+			} catch {
+				// ignore Windows lock
 			}
 		}
 	});

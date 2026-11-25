@@ -727,6 +727,7 @@ export function removeMcpServerFromFile(
 function copyPluginPayload(sourceDir, destDir) {
 	const items = [
 		".gemini-plugin",
+		"plugin.json",
 		"assets",
 		"agents",
 		"bin",
@@ -833,9 +834,12 @@ export function syncProjectPluginDirectory(sourceDir, destDir, options = {}) {
 	const stampPath = path.join(destDir, ".agy-ensemble-install.json");
 	const headSha = readRepoHeadSha(resolvedSource);
 	const projectRootDir = resolveProjectRootFromPluginDir(path.resolve(destDir));
-	const expectedDbPath = projectRootDir
-		? path.join(projectRootDir, ".ensemble", "team.db")
-		: ".ensemble/team.db";
+	const expectedDbPath =
+		options.expectedDbPath ||
+		(projectRootDir
+			? path.join(projectRootDir, ".ensemble", "team.db")
+			: ".ensemble/team.db");
+	const runtime = resolveMcpRuntime(options.runtime, resolvedSource);
 
 	let existingStat = null;
 	try {
@@ -899,13 +903,13 @@ export function syncProjectPluginDirectory(sourceDir, destDir, options = {}) {
 	}
 	copyPluginPayload(resolvedSource, destDir);
 
-	if (options.runtime) {
+	if (runtime) {
 		const mcpServerScript = path.join(resolvedSource, "dist", "mcp-server.js");
 		mergeMcpConfigFile(
 			path.join(destDir, "mcp_config.json"),
 			"agy-ensemble",
 			{
-				command: options.runtime,
+				command: runtime,
 				args: [mcpServerScript],
 				env: {
 					ENSEMBLE_DB_PATH: expectedDbPath,
@@ -948,6 +952,52 @@ export function syncProjectPluginDirectory(sourceDir, destDir, options = {}) {
 	);
 
 	return { path: destDir, action };
+}
+
+/**
+ * Detect git worktrees in projectRootDir and sync .agents/plugins/agy-ensemble
+ * to each worktree so subagents in worktrees have full plugin discovery and live tracing.
+ *
+ * @param {string} projectRootDir
+ * @param {string} sourceDir
+ * @param {any} [options]
+ * @returns {Array<{ worktreeDir: string; pluginPath: string }>}
+ */
+export function syncProjectWorktrees(projectRootDir, sourceDir, options = {}) {
+	if (!projectRootDir || !fs.existsSync(path.join(projectRootDir, ".git")))
+		return [];
+	try {
+		const out = execFileSync(
+			"git",
+			["-C", projectRootDir, "worktree", "list", "--porcelain"],
+			{
+				encoding: "utf8",
+				stdio: ["ignore", "pipe", "ignore"],
+			},
+		);
+		const normalizedRoot = path.resolve(projectRootDir).toLowerCase();
+		const worktreeDirs = [];
+		for (const line of out.split("\n")) {
+			if (line.startsWith("worktree ")) {
+				const wtDir = path.resolve(line.slice("worktree ".length).trim());
+				if (wtDir.toLowerCase() !== normalizedRoot && fs.existsSync(wtDir)) {
+					worktreeDirs.push(wtDir);
+				}
+			}
+		}
+		const results = [];
+		for (const wt of worktreeDirs) {
+			const wtPluginDir = path.join(wt, ".agents", "plugins", "agy-ensemble");
+			const synced = syncProjectPluginDirectory(sourceDir, wtPluginDir, {
+				...options,
+				expectedDbPath: path.join(projectRootDir, ".ensemble", "team.db"),
+			});
+			results.push({ worktreeDir: wt, pluginPath: synced.path });
+		}
+		return results;
+	} catch {
+		return [];
+	}
 }
 
 /**
@@ -1296,6 +1346,32 @@ export function installIntoProject(options = {}) {
 	const projectPluginResult = syncProjectPluginDirectory(
 		resolvedSourceDir,
 		projectPluginLinkPath,
+		{
+			runtime,
+			graphify: graphifyEnabled,
+			graphifyMcpBin: null,
+			context7: context7Enabled,
+			context7ApiKey: options.context7ApiKey,
+			force: options.force,
+			dryRun: options.dryRun,
+		},
+	);
+
+	// 1b. If targetDir has git worktrees, sync .agents/plugins/agy-ensemble to each worktree too
+	const worktreesResult = syncProjectWorktrees(targetDir, resolvedSourceDir, {
+		runtime,
+		graphify: graphifyEnabled,
+		graphifyMcpBin: null,
+		context7: context7Enabled,
+		context7ApiKey: options.context7ApiKey,
+		force: options.force,
+		dryRun: options.dryRun,
+	});
+
+	// 1b. Sync plugin to any active git worktrees of targetDir
+	const projectWorktreesResult = syncProjectWorktrees(
+		targetDir,
+		resolvedSourceDir,
 		{
 			runtime,
 			graphify: graphifyEnabled,
